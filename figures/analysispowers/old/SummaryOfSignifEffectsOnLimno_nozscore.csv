@@ -1,0 +1,15 @@
+"","term","vars_mid","vars_lo","vars_hi"
+"1","Elevation_m"," +K,  +Total P"," +K"," +K"
+"2","elevmean_wshed"," +K,  +Total P"," +K"," +K"
+"3","Depth_mean_m"," +secchi_value_m"," +secchi_value_m"," +secchi_value_m"
+"4","SWE_May_snotel"," -ProfTemp_top2m",""," -ProfTemp_top2m"
+"5","Watershed_area_to_lake_area_ratio"," +Ca,  +Mg"," +Ca,  +Mg"," +Ca,  +Mg"
+"6","flush_index_SWE_May_snodas"," -SO4,  +SpCond_top2m",""," -SO4"
+"7","solar_jas"," +DO_top2m,  +K,  +pH_top2m"," +DO_top2m,  +K,  +pH_top2m"," +DO_top2m,  +K,  +pH_top2m"
+"8","northface",NA,NA,NA
+"9","forest"," +Total N"," +Total N"," +Total N"
+"10","barren",NA,NA,NA
+"11","biotitegneiss",""," +Chlorophyll",""
+"12","SO4_dep_1985_2015"," +Cl"," +Cl"," +Cl"
+"13","SO4_dep_1990_1999"," +Cl"," +Cl"," +Cl"
+"14","SO4_dep_2000_2009"," +Cl"," +Cl"," +Cl"

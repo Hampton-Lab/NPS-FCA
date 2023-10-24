@@ -1,0 +1,296 @@
+---
+title: "Zoop multivariate (genus level)"
+author: "Matt Brousil"
+date: "2020-05-19"
+output: html_document
+---
+
+### Multivariate zooplankton exploration
+
+A script for zooplankton community analysis using genus level aggregation of the
+NPS dataset.
+
+```{r, message = FALSE, warning = FALSE}
+
+library(tidyverse)
+library(readxl)
+library(vegan)
+library(labdsv)
+library(kableExtra)
+library(viridis)
+library(visdat)
+library(corrplot)
+library(psych)
+library(ggvegan)
+library(janitor)
+library(ggpubr)
+
+```
+
+#### 1. Load the data and do some prep. (E.g., not sure what's going on with row 1487).
+```{r}
+bigjoin <- readRDS(file = "../data/analysis_outputs/bigjoin.rds")
+zoop <- read_excel("../data/NCCN_Zoops_Combined_For_FCA_May_2019.xlsx")
+
+#  Prep data
+zoop[1487, "Taxa"] <- "ROT"
+zoop[1487, "Taxonid"] <- 5
+
+# Name matching table
+match_sites <- readRDS(file = file.path("..",
+                                        "data",
+                                        "name_site_matches.rds"))
+
+# Crosswalk common names for sites to site_codes
+zoop <- left_join(x = zoop, y = match_sites,
+                  by = c("Lake" = "old_name")) %>%
+  clean_names()
+
+# Remove copepodites and nauplii from the dataset per MM suggestion
+zoop_orig <- zoop
+
+zoop <- zoop %>%
+  filter(!grepl(pattern = "copepodite", x = gen_sp),
+         !grepl(pattern = "nauplii", x = gen_sp),
+         taxa != "INS", taxa != "HAR",
+         gen_sp != "No zooplankton detected",
+         gen_sp != "immature Daphnia")
+
+# Remove things that don't have genus level ID. Then create genus column
+zoop <- zoop %>%
+  filter(!(gen_sp %in% c("small sp.", "Chaoborus", "mosquito pupae",
+                         "harpacticoid", "chydorid"))) %>%
+  separate(col = gen_sp, into = c("genus", "species"), sep = " ") %>%
+  mutate(genus = if_else(condition = genus == "Conochilius",
+                         true = "Conochilus", false = genus))
+```
+
+#### 2. NMDS prep and plot
+I turn the density measurements into proportions of each taxon per sample. Then
+filter out genera providing <= 5% of **every** sample before making into a matrix.
+```{r}
+# Drop genera that are less or equal to than 5% of ANY sample. So if they ever
+# are a large enough proportion of a sample that genera is kept through the
+# entire dataset.
+zoop_five <- zoop %>%
+  # Dropping Code for now b/c unclear what it means. Code != Taxa though.
+  # Also dropping taxonid
+  group_by(park, lake, site_code, year, genus) %>%
+  summarise(density = sum(density)) %>%
+  group_by(park, site_code, year) %>%
+  mutate(sum_density = sum(density, na.rm = T)) %>%
+  ungroup() %>%
+  mutate(prop_density = density / sum_density) %>%
+  group_by(genus) %>%
+  summarize(max_prop = max(prop_density)) %>%
+  filter(max_prop <= 0.05)
+
+# Use that dataset to filter out things that don't match up
+zoop_reduced <- anti_join(x = zoop, y = zoop_five, by = c("genus")) %>%
+  group_by(park, site_code, year, genus) %>%
+  summarise(density = sum(density))
+
+# Break the datset into separate data frames for each season and make community
+# matrices for each. Add a row identifier column, then turn into matrix
+zoop_comm_matrix <- map(.x = unique(zoop_reduced$site_code),
+                        .f = ~ zoop_reduced %>%
+                          filter(site_code == .x) %>%
+                          mutate(park_site_year = paste0(park, "_", site_code, "_", year)) %>%
+                          ungroup() %>%
+                          select(park_site_year, genus, density) %>%
+                          data.frame() %>%
+                          matrify())
+```
+
+```{r results="hide"}
+nmds_2 <- map(.x = zoop_comm_matrix,
+              .f = ~ metaMDS(comm = .x,
+                             distance = "bray", k = 2, trymax = 100))
+```
+
+How many of these converged?
+```{r}
+map_lgl(.x = nmds_2,
+        .f = ~ .x$converged) %>%  sum()
+```
+
+
+#### Let's plot the three-dimensional NMDS:
+
+```{r echo=FALSE}
+# Park/site/year data
+identity_data <- map(.x = zoop_comm_matrix, 
+                     .f = ~ rownames_to_column(.x) %>%
+                       separate(col = rowname, into = c("park", "site", "year"), sep = "_") %>%
+                       select(park:year))
+
+# Combine identity data with scores
+nmds_scores <- map2(.x = nmds_2,
+                    .y = identity_data,
+                    .f = ~ cbind(as_tibble(scores(.x)),
+                                 .y) %>%
+                      mutate(year_color = ifelse(test = year %in% c(2011, 2015),
+                                                 yes = "extreme", no = "baseline")))
+
+species_scores <- map(.x = nmds_2,
+                      .f = ~ rownames_to_column(as.data.frame(scores(.x, "species"))) %>%
+                        rename(taxa = rowname))
+
+year_nmds_plot <- map(.x = nmds_scores,
+                      .f = ~ ggplot(data = .x) +
+                        geom_point(aes(x = NMDS1, y = NMDS2)) +
+                        geom_text(aes(x = NMDS1, y = NMDS2, label = year, color = year_color)) +
+                        facet_wrap(. ~ site))
+
+# Plot the figs to rmd knit
+year_nmds_plot
+
+# map(.x = ,
+#     .f = ~ ggsave(filename = "../figures/multivariate/zoop_year_nmds_plot.png",
+#        plot = year_nmds_plot, device = "png", width = 10, height = 8,
+#        units = "in")
+
+```
+
+```{r}
+zoops_comm_ids <- map(.x = zoop_comm_matrix,
+                      .f = ~ rownames_to_column(.x) %>%
+                        separate(col = rowname, into = c("park", "site", "year"), sep = "_"))
+
+# Get a vector of possible genus names
+genus_names <- zoop_reduced$genus %>% unique()
+
+zoop_permanova <- map(.x = zoops_comm_ids,
+                      .f = ~ {
+                        
+                        genus_data <- .x %>%
+                          select(any_of(genus_names))
+                        
+                        env_data <- .x %>%
+                          select(year, site, park)
+                        
+                        
+                        adonis(formula = genus_data ~ 
+                                 year,
+                               data = env_data, method = "bray")
+                      }
+                      
+)
+
+
+
+
+zoop_permanova
+
+```
+
+#### Distance-based redundancy analysis (dbRDA)
+
+vegan::capscale()/dbRDA() documentation: *Distance-based redundancy analysis (dbRDA) is an ordination method similar to Redundancy Analysis (rda), but it allows non-Euclidean dissimilarity indices, such as Manhattan or Bray–Curtis distance. Despite this non-Euclidean feature, the analysis is strictly linear and metric. If called with Euclidean distance, the results are identical to rda, but dbRDA will be less efficient. Functions capscale and dbrda are constrained versions of metric scaling, a.k.a. principal coordinates analysis, which are based on the Euclidean distance but can be used, and are more useful, with other dissimilarity measures. The functions can also perform unconstrained principal coordinates analysis, optionally using extended dissimilarities.*
+
+
+
+```{r}
+zoops_comm_ids <- map(.x = zoops_comm_ids,
+                      .f = ~ .x %>%
+                        mutate(year = as.numeric(year)))
+
+yearly_bigjoin <- bigjoin %>%
+  filter(variable %in% c("secchi_value_m", "AirTemp", "BotTemp",
+                         "MidTemp", "SurfTemp", "DO_top2m")) %>%
+  select(park_code, site_code, event_year, variable, value) %>%
+  unique() %>%
+  spread(key = variable, value = value)
+
+# Join the zoops to yearly_bigjoin bc some data will be NA: both datasets
+# should have corresponding rows
+yearly_bigjoin_zoop <- map(.x = zoops_comm_ids,
+                           .f = ~ inner_join(x = .x, y = yearly_bigjoin,
+                                             by = c("park" = "park_code",
+                                                    "site" = "site_code",
+                                                    "year" = "event_year")))
+
+map(.x = yearly_bigjoin_zoop,
+    .f = ~ vis_dat(x = .x))
+```
+
+
+Now look at env variable correlations, but first check for and remove NAs
+```{r}
+# Down some rows after removing NAs...
+yearly_bigjoin_zoop <- map(.x = yearly_bigjoin_zoop, .f = ~ na.omit(.x)) 
+
+# Hoh lake has a lot of NAs. Drop it for now
+yearly_bigjoin_zoop <- yearly_bigjoin_zoop[-21]
+
+map(.x = yearly_bigjoin_zoop,
+    .f = ~ corrplot(cor(select(.x, AirTemp:SurfTemp)), type = "upper",
+                    tl.col = "black", tl.srt = 45))
+
+# corr.test(x = select(yearly_bigjoin_zoop, AirTemp:SurfaceTemp))
+```
+
+How about keep SurfTemp, drop other temps?
+```{r}
+map(.x = yearly_bigjoin_zoop,
+    .f = ~ corrplot(cor(select(.x, SurfTemp, DO_top2m, secchi_value_m)),
+                    type = "upper", tl.col = "black", tl.srt = 45))
+
+# corr.test(x = select(yearly_bigjoin_zoop, SurfTemp, DO_top2m, secchi_value_m))
+
+```
+
+Looks like secchi and DO are correlated significantly, but the correlation is weak. I keep both for now.
+
+Run dbRDA. Note that it doesn't provide species score (capscale() does).  
+
+**Note** that in joining in the environmental data and removing NAs, we've lost `r nrow(zoop_comm_matrix) - nrow(yearly_bigjoin_zoop)` rows (`r round((nrow(zoop_comm_matrix) - nrow(yearly_bigjoin_zoop)) / nrow(zoop_comm_matrix), digits = 2) * 100`%) of data compared with the matrix used for producing the previous nmds output.
+```{r}
+
+zoop_dbrda <- map(.x = yearly_bigjoin_zoop,
+                  .f = ~ 
+                    
+                    {
+                      
+                      genus_data <- .x %>%
+                        select(any_of(genus_names))
+                      
+                      env_data <- .x %>%
+                        select(year, site, park)
+                      
+                      dbrda(formula = genus_data ~
+                              SurfTemp + DO_top2m + secchi_value_m, data = .x,
+                            distance = "bray")
+                    }
+)
+
+zoop_dbrda
+
+map(.x = zoop_dbrda,
+    .f = ~ autoplot(.x))
+```
+
+```{r echo = FALSE}
+# ggsave(filename = "../figures/multivariate/zoop_dbrda.png",
+#        plot = autoplot(zoop_dbrda) +
+#          ggtitle("Distance-based RDA for zoop community"),
+#        device = "png", width = 10, height = 6,
+#        units = "in")
+```
+
+<!-- The first dbRDA axis accounts for `r round((eigenvals(zoop_dbrda)["dbRDA1"] / sum(eigenvals(zoop_dbrda)[grep(x = names(eigenvals(zoop_dbrda)), pattern = "dbRDA")]))  * 100, digits = 2)`% of the variation. The second dbRDA axis accounts for `r round((eigenvals(zoop_dbrda)["dbRDA2"] / sum(eigenvals(zoop_dbrda)[grep(x = names(eigenvals(zoop_dbrda)), pattern = "dbRDA")]))  * 100, digits = 2)`% of the variation.  -->
+
+```{r}
+# https://sites.ualberta.ca/~ahamann/teaching/renr690/Lab9b.pdf
+map(.x = zoop_dbrda,
+    .f = ~ anova(.x))
+
+# anova(zoop_dbrda, by = "axis", perm.max = 999) # Won't run bc negative eigenvalues
+map(.x = zoop_dbrda,
+    .f = ~ anova(.x, by = "terms", perm.max = 999))
+```
+
+
+The next section previously re-ran NMDS plots using the data subsets fed into the
+dbRDA. I removed it for now to avoid complicating this document further while
+analyses were in flux.

@@ -1,0 +1,355 @@
+---
+title: "Zooplankton and Environmental Data Analysis"
+author: "Matt Brousil"
+date: "August 28, 2019"
+output: html_document
+---
+
+```{r echo = FALSE, results = FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(readxl)
+library(visdat)
+library(vegan)
+library(janitor)
+```
+
+## 1. Zooplankton communities ~ environmental variables
+
+### 1b. Zooplankton CCA  
+
+**Species level**  
+```{r, echo = FALSE, results = 'hide', fig.show='hide', warning=FALSE}
+# Load data
+bigjoin <- readRDS(file = "../data/analysis_outputs/bigjoin.rds")
+zoop <- read_excel("../data/NCCN_Zoops_Combined_For_FCA_May_2019.xlsx")
+
+#  Prep data
+zoop[1487, "Taxa"] <- "ROT"
+zoop[1487, "Taxonid"] <- 5
+
+# Name matching table
+match_sites <- readRDS(file = file.path("..",
+                                        "data",
+                                        "name_site_matches.rds"))
+
+# Crosswalk common names for sites to site_codes
+zoop <- left_join(x = zoop, y = match_sites,
+                               by = c("Lake" = "old_name"))
+
+# Grab yearly environmental data...quick check
+
+bigjoin %>%
+  filter(variable %in% c("secchi_value_m", "AirTemp", "BotTemp",
+                         "MidTemp", "SurfTemp", "DO_top2m")) %>%
+  select(park_code, site_code, event_year, start_date, ice_out_doy) %>%
+  unique() %>%
+  count(park_code, site_code, event_year, start_date) %>%
+  arrange(desc(n))
+
+yearly_bigjoin <- bigjoin %>%
+  filter(variable %in% c("secchi_value_m", "AirTemp", "BotTemp",
+                         "MidTemp", "SurfTemp", "DO_top2m")) %>%
+  select(park_code, site_code, event_year, variable, value) %>%
+  unique()
+
+head(yearly_bigjoin)  
+head(zoop)
+
+# There's 114 rows in the yearly_bigjoin that don't match up with zoop data
+zoop_env <- inner_join(x = zoop, y = yearly_bigjoin,
+          by = c("site_code",
+                 "Year" = "event_year")) %>%
+  spread(key = variable, value = value)
+
+# Double check that there's not multiple measures/year (Spoiler: There are.)
+zoop_env %>%
+  count(park_code, site_code, Year, GenSp) %>%
+  arrange(desc(n))
+
+# Deadwood has multiple samples per zoop species per year? I'm not clear
+# as to why this is. Perhaps I'm missing something. Going to sum them up
+# for now.
+zoop_env %>%
+  filter(park_code == "MORA", site_code == "LW32", Year == "2018")
+
+zoop_sum <- zoop %>%
+  group_by(Park, Year, Lake, site_code, Code, Taxa, Taxonid, GenSp) %>%
+  summarise(density = sum(Density))
+  
+zoop_env_sum <- inner_join(x = zoop_sum, y = yearly_bigjoin,
+                       by = c("site_code",
+                              "Year" = "event_year")) %>%
+  spread(key = variable, value = value)
+
+# Looks good:
+zoop_env_sum %>%
+  count(park_code, site_code, Year, GenSp) %>%
+  arrange(desc(n))
+
+# Variables in the dataset currently:
+names(zoop_env_sum)
+
+zoop_env_sp_no_na_spread <- zoop_env_sum %>%
+  filter_at(vars(AirTemp:SurfTemp), all_vars(!is.na(.))) %>%
+  spread(key = GenSp, value = density)
+
+vis_dat(zoop_env_sp_no_na_spread)
+
+# Not sure this is the way to go...Looking at the absence of data in this df
+# it's clear that the species are fairly unique to specific places? Would still
+# fill in the NAs with 0s, but still there's a lot of zero data. 
+
+cca_comm_data_sp <- zoop_env_sp_no_na_spread %>%
+  clean_names() %>%
+  data.frame() %>%
+  select(alona_costata:trichotria_tetractis) %>%
+  # Replace NAs with 0s
+  map_df(.x = .,  ~ replace_na(data = ., replace = 0))
+
+cca_env_data_sp <- zoop_env_sp_no_na_spread %>%
+  data.frame() %>%
+  select(AirTemp:SurfTemp)
+
+zoop_cca_sp <- cca(X = as.matrix(cca_comm_data_sp),
+                Y = as.matrix(cca_env_data_sp))
+```
+
+
+CCA plot for Zoop sp density ~ environmental data
+```{r}
+ordiplot(zoop_cca_sp)
+```
+
+**Taxa level**
+```{r, echo = FALSE, results = 'hide', fig.show='hide'}
+# Let's try taxa level too. Going to backup a couple steps...
+
+zoop_sum_taxa <- zoop %>%
+  # Dropping Code b/c it appears redundant with Taxa
+  group_by(Park, Year, Lake, site_code, Taxa, Taxonid) %>%
+  summarise(density = sum(Density))
+
+zoop_env_sum_taxa <- inner_join(x = zoop_sum_taxa, y = yearly_bigjoin,
+                           by = c("site_code",
+                                  "Year" = "event_year")) %>%
+  spread(key = variable, value = value)
+
+# Looks good:
+zoop_env_sum_taxa %>%
+  count(park_code, site_code, Year, Taxa) %>%
+  arrange(desc(n))
+
+# Variables in the dataset currently:
+names(zoop_env_sum_taxa)
+
+# CCA will only run if there are no NA values...I don't think it makes sense
+# to turn NA values for the env data into 0s. So, are there rows where all
+# predictors aren't NA?
+zoop_env_sum_taxa %>%
+  filter(!is.na(Taxa)) %>%
+  spread(key = Taxa, value = density)
+
+# Yes.
+vis_dat(zoop_env_sum_taxa %>%
+  filter(!is.na(Taxa)) %>%
+  spread(key = Taxa, value = density))
+
+# **How to account (at all?) account for the fact that not all lakes have
+# identical timelines of zoop data, and some that do will probably have gaps in
+# their environmental data?**
+zoop_env_sum_taxa %>%
+  filter_at(vars(AirTemp:SurfTemp), all_vars(!is.na(.))) %>%
+  # What space and time spread to they cover?
+  count(Park, Lake, Year) %>%
+  ggplot() +
+  geom_point(aes(x = Year, y = Lake)) +
+  facet_grid(rows = vars(Park))
+
+# Create a version of the dataset that has only data with no predictor NAs
+zoop_env_taxa_no_na_spread <- zoop_env_sum_taxa %>%
+  filter(!is.na(Taxa)) %>%
+  select(-Taxonid) %>%
+  filter_at(vars(AirTemp:SurfTemp), all_vars(!is.na(.))) %>%
+  spread(key = Taxa, value = density)
+
+cca_comm_data_taxa <- zoop_env_taxa_no_na_spread %>%
+  data.frame() %>%
+  select(CLAD:ROT) %>%
+  # Replace NAs with 0s
+  map_df(.x = .,  ~ replace_na(data = ., replace = 0))
+
+cca_env_data_taxa<- zoop_env_taxa_no_na_spread %>%
+  data.frame() %>%
+  select(AirTemp:SurfTemp)
+
+zoop_cca_taxa <- cca(X = as.matrix(cca_comm_data_taxa),
+                Y = as.matrix(cca_env_data_taxa))
+```
+
+CCA plot for Zoop taxa density ~ environmental data
+```{r}
+ordiplot(zoop_cca_taxa)
+```
+
+### 1c. Zooplankton DBRDA (`capscale()`)
+```{r}
+library(tidyverse)
+library(readxl)
+library(visdat)
+library(vegan)
+library(janitor)
+library(psych)
+library(corrplot)
+library(ggvegan)
+
+bigjoin <- readRDS(file = "../data/analysis_outputs/bigjoin.rds")
+zoop <- read_excel("../data/NCCN_Zoops_Combined_For_FCA_May_2019.xlsx")
+
+#  Prep data
+zoop[1487, "Taxa"] <- "ROT"
+zoop[1487, "Taxonid"] <- 5
+
+# Notes on the zoops: Going to avoid species in this analysis because many zeroes.
+# Also, there appear to be some synonyms.
+# If synonyms figured out, could slim things down by selecting >= 5% contribs
+
+# Name matching table
+match_sites <- readRDS(file = file.path("..",
+                                        "data",
+                                        "name_site_matches.rds"))
+
+# Crosswalk common names for sites to site_codes
+zoop <- left_join(x = zoop, y = match_sites,
+                  by = c("Lake" = "old_name")) %>%
+  clean_names()
+
+# Turn density measures into proportions of each taxon per sample. Filter out
+# those providing <5%
+zoop_prop_taxa <- zoop %>%
+  # Dropping Code for now b/c unclear what it means. Code != Taxa though.
+  # Also dropping taxonid
+  group_by(park, year, lake, site_code, taxa) %>%
+  summarise(density = sum(density)) %>%
+  group_by(park, year, site_code) %>%
+  mutate(sum_density = sum(density, na.rm = T)) %>%
+  ungroup() %>%
+  mutate(prop_density = density / sum_density) %>%
+  filter(prop_density >= .05)
+
+yearly_bigjoin <- bigjoin %>%
+  filter(variable %in% c("secchi_value_m", "AirTemp", "BotTemp",
+                         "MidTemp", "SurfTemp", "DO_top2m")) %>%
+  select(park_code, site_code, event_year, variable, value) %>%
+  unique()
+
+zoop_env_prop_taxa <- inner_join(x = zoop_prop_taxa, y = yearly_bigjoin,
+                                by = c("site_code",
+                                       "year" = "event_year")) %>%
+  spread(key = variable, value = value)
+
+# Looks good:
+zoop_env_prop_taxa %>%
+  count(park_code, site_code, year, taxa) %>%
+  arrange(desc(n))
+
+# Variables in the dataset currently:
+names(zoop_env_prop_taxa)
+
+# Now look at env variable correlations, but first check for and remove NAs
+vis_dat(x = zoop_env_prop_taxa)
+
+zoop_env_prop_taxa_full <- na.omit(zoop_env_prop_taxa)
+
+corrplot(cor(select(zoop_env_prop_taxa_full, AirTemp:SurfTemp)), type = "upper", 
+         tl.col = "black", tl.srt = 45)
+
+corr.test(x = select(zoop_env_prop_taxa_full, AirTemp:SurfTemp))
+
+# How about keep SurfTemp, drop other temps.
+corrplot(cor(select(zoop_env_prop_taxa_full, AirTemp, DO_top2m, secchi_value_m)), type = "upper", 
+         tl.col = "black", tl.srt = 45)
+
+corr.test(x = select(zoop_env_prop_taxa_full, AirTemp, DO_top2m, secchi_value_m))
+
+# If I'm understanding the output correctly, DO and secchi are correlated significantly, but the correlation is weak. I keep it for now.
+
+zoop_env_prop_taxa_spread <- zoop_env_prop_taxa_full %>%
+  select(-density, -sum_density) %>%
+  spread(key = taxa, value = prop_density) %>%
+  # Replace NAs with 0s
+  map_df(.x = .,  ~ replace_na(data = ., replace = 0))
+
+capscale_taxa_data <- zoop_env_prop_taxa_spread %>%
+  select(CLAD:ROT)
+
+capscale_env_data <- zoop_env_prop_taxa_spread %>%
+  select(DO_top2m, secchi_value_m, SurfTemp)
+
+```
+
+Take a quick detour to log transform the data. Michael suggested that there might
+be an issue with imbalance in the axes due to different scales of the data. An issue
+with this is that the DO_top2m column has a negative value (-2.919)...Is this allowed?
+**Update**: I tried this, but get a subscript out of bounds error when I run the
+capscale and it additionally says "results may be meaningless because data have
+negative entries in method "bray""
+```{r eval=FALSE}
+# Section is included here but not evaluated
+
+capscale_taxa_data <- map_df(.x = capscale_taxa_data,
+                             .f = ~ log10(.x + 0.01))
+
+capscale_env_data <- map_df(.x = capscale_env_data,
+                            .f = ~ log10(.x + 0.01))
+
+# Remove the NA
+na_row <- which(is.na(capscale_env_data), arr.ind = TRUE)[, 1]
+
+capscale_env_data <- capscale_env_data[-na_row, ]
+capscale_taxa_data <- capscale_taxa_data[-na_row, ]
+
+```
+
+
+```{r}
+# Do the capscale
+zoop_env_capscale <- capscale(formula = capscale_taxa_data ~ DO_top2m +
+                                SurfTemp + secchi_value_m,
+                              data = capscale_env_data, distance = "bray")
+
+zoop_env_capscale
+
+autoplot(zoop_env_capscale)
+
+```
+
+
+
+
+
+
+
+```{r}
+autoplot(metaMDS(comm = capscale_taxa_data, trymax = 100))
+stressplot(metaMDS(comm = capscale_taxa_data, trymax = 100))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

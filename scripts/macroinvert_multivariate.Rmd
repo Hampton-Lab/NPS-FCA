@@ -1,0 +1,497 @@
+---
+title: "Macroinvert multivariate"
+author: "Matt Brousil"
+date: "2020-02-03"
+output: html_document
+---
+
+### Multivariate macroinvertebrate exploration
+
+```{r, message=FALSE}
+
+library(tidyverse)
+library(readxl)
+library(vegan)
+library(labdsv)
+library(kableExtra)
+library(viridis)
+library(visdat)
+library(corrplot)
+library(psych)
+library(ggvegan)
+library(ggpubr)
+
+```
+
+#### Load the data
+
+```{r}
+# Macroinvert data
+macro_counts <- read_excel(path = "../data/NCCN_ML_BMI_Counts_FCA_2019JUL09.xlsx",
+                           sheet = "BMI_Counts")
+
+head(macro_counts)
+
+# Lookup table for macro taxonomy
+macro_lookup <- read_excel(path = "../data/NCCN_ML_BMI_Counts_FCA_2019JUL09.xlsx",
+                           sheet = "Taxon_Lookup")
+
+head(macro_lookup)
+
+# Environmental data
+bigjoin <- readRDS(file = "../data/analysis_outputs/bigjoin.rds")
+
+
+```
+
+
+#### 1. How well do the macroinvert count data match the taxa lookup list provided?
+```{r}
+
+unique_counts <- unique(macro_counts$Taxon)
+unique_lookup <- unique(macro_lookup$Taxon)
+```
+
+Which taxa in the counts data aren't in the lookup table? (result = 4)
+```{r}
+unique_counts[!(unique_counts %in% unique_lookup)]
+```
+
+Which taxa in lookup aren't in counts? (result = 0)
+```{r}
+unique_lookup[!(unique_lookup %in% unique_counts)]
+```
+
+**The lists are pretty well matched.** SH suggested going up to order for multivariate work.
+I'll go ahead and join the count data to the lookup data to move towards this. There's also a row with NA count data, so I remove it.
+```{r}
+full_macro <- inner_join(x = macro_counts, y = macro_lookup, by = c("Taxon"))
+
+# summary(full_macro)
+
+full_macro <- full_macro %>%
+  filter(!is.na(Count))
+
+```
+
+Data broken down by order:
+```{r}
+full_macro %>%
+  group_by(Order) %>%
+  summarize(total_counts = sum(Count)) %>%
+  arrange(desc(total_counts))
+
+```
+
+
+```{r include=FALSE, eval=FALSE}
+# How many rows of NA family per location?
+full_macro %>%
+  filter(is.na(Family)) %>%
+  count(Park, Site_ID)
+
+```
+
+
+#### 2. NMDS prep and plot
+
+Aggregate the data and then reshape to create a community matrix. Remove orders
+contributing >= 5% of counts.
+(Note: This includes all life stages)
+
+```{r}
+# Aggregate to order and filter out those <= 5% of the representation
+macro_comm <- full_macro %>%
+  group_by(Park, Site_ID, Year, Order) %>%
+  summarise(sum_order_count = sum(Count)) %>%
+  group_by(Park, Site_ID, Year) %>%
+  mutate(sum_all_count = sum(sum_order_count, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(prop_order = sum_order_count / sum_all_count) %>%
+  # This drops 703 rows
+  filter(prop_order >= 0.05)
+
+# Add a row identifier column, turn into matrix
+macro_comm_matrix <- macro_comm %>%
+  mutate(park_site_year = paste0(Park, "_", Site_ID, "_", Year)) %>%
+  select(park_site_year, Order, sum_order_count) %>%
+  data.frame() %>%
+  matrify()
+```
+
+Standardize to relative abundance per site
+```{r}
+macro_std <- decostand(x = macro_comm_matrix, method = "total")
+
+head(macro_std)
+```
+
+Should sum to 1 within rows:
+```{r}
+sum(macro_std[1, ])
+```
+
+Scree plot for an NMDS
+```{r results="hide"}
+# Adapted from https://ourcodingclub.github.io/2018/05/04/ordination.html
+scree_plot <- function(x) { #where x is the name of the data frame variable
+  plot(rep(1, 10),
+       replicate(10, metaMDS(comm = x, distance = "bray", k = 1)$stress),
+       xlim = c(1, 10),ylim = c(0, 0.30), xlab = "# of Dimensions",
+       ylab = "Stress", main = "NMDS stress plot")
+  for (i in 1:10) {
+    points(rep(i + 1,10),replicate(10, metaMDS(x,  distance = "bray", k = i + 1)$stress))
+  }
+}
+
+scree_plot(macro_std)
+```
+
+#### How do 2- and 3-dimensional NDMS perform?
+
+A two-dimensional NMDS does not usually converge:
+```{r results="hide"}
+nmds_2 <- metaMDS(comm = macro_std, distance = "bray", k = 2, trymax = 100)
+```
+
+```{r}
+nmds_2
+```
+
+A three-dimensional NMDS converges:
+```{r results="hide"}
+nmds_3 <- metaMDS(comm = macro_std, distance = "bray", k = 3, trymax = 100)
+```
+
+```{r}
+nmds_3
+```
+
+<!-- ```{r} -->
+<!-- stressplot(nmds_3) -->
+<!-- ``` -->
+
+#### Let's plot it:
+
+```{r echo=FALSE}
+# Park/site/year data
+identity_data <- rownames_to_column(macro_std) %>%
+  separate(col = rowname, into = c("park", "site", "year"), sep = "_") %>%
+  select(park:year)
+
+# Combine identity data with scores
+nmds_scores <- cbind(as_tibble(scores(nmds_3)),
+                     identity_data)
+
+species_scores <- rownames_to_column(as.data.frame(scores(nmds_3, "species"))) %>%
+  rename(order = rowname)
+
+park_nmds_plot <- ggplot() +
+  # geom_text(data = species_scores, aes(x = NMDS1, y = NMDS2, label = order),
+  #           alpha = 0.5, size = 7) +
+  geom_point(data = nmds_scores, aes(x = NMDS1, y = NMDS2, 
+                                     fill = park), size = 3, pch = 21) +
+  scale_fill_manual(values = inferno(15)[c(3, 8, 11)],
+                    name = "Park") +
+  annotate(geom = "label", x = -1, y = 1.25, size = 5,
+           label = paste("Stress: ", round(nmds_3$stress, digits = 3))) +
+  theme_minimal() +
+  theme(legend.position = "right",
+        text = element_text(size = 24))
+
+year_nmds_plot <- ggplot() +
+  # geom_text(data = species_scores, aes(x = NMDS1, y = NMDS2, label = order),
+  #           alpha = 0.5, size = 7) +
+  geom_point(data = nmds_scores, aes(x = NMDS1, y = NMDS2, 
+                                     fill = year), size = 3, pch = 21) +
+  scale_fill_manual(values = viridis(11),
+                    name = "Year") +
+  annotate(geom = "label", x = -1, y = 1.25, size = 5,
+           label = paste("Stress: ", round(nmds_3$stress, digits = 3))) +
+  theme_minimal() +
+  theme(legend.position = "right",
+        text = element_text(size = 24))
+
+site_nmds_plot <- ggplot() +
+  # geom_text(data = species_scores, aes(x = NMDS1, y = NMDS2, label = order),
+  #           alpha = 0.5, size = 7) +
+  geom_point(data = nmds_scores, aes(x = NMDS1, y = NMDS2, 
+                                     fill = site), size = 3, pch = 21) +
+  scale_fill_manual(values = plasma(12),
+                    name = "Site") +
+  annotate(geom = "label", x = -1, y = 1.25, size = 5,
+           label = paste("Stress: ", round(nmds_3$stress, digits = 3))) +
+  theme_minimal() +
+  theme(legend.position = "right",
+        text = element_text(size = 24))
+
+# Plot the figs to rmd knit
+park_nmds_plot
+year_nmds_plot
+site_nmds_plot
+
+three_nmds_plots <- ggarrange(park_nmds_plot, year_nmds_plot, site_nmds_plot) %>%
+  annotate_figure(top = text_grob("Macroinvert NMDS plots colored by Park/Year/Site",
+                                  face = "bold", size = 16))
+
+ggsave(filename = "../figures/multivariate/macroinvert_combined_nmds.png",
+       plot = three_nmds_plots, device = "png", width = 10, height = 8,
+       units = "in")
+
+```
+
+```{r}
+macro_std_ids <- rownames_to_column(macro_std) %>%
+  separate(col = rowname, into = c("park", "site", "year"), sep = "_")
+
+macro_permanova <- adonis(formula = select(macro_std_ids, `_Acari`:Veneroida) ~ year + site,
+                          data = macro_std_ids, method = "bray")
+
+macro_permanova
+
+```
+
+#### 3. Make some univariate plots to look at similar metrics
+```{r}
+# Reshape the proportion community data into a useful data frame for ggplot2
+macro_props <- as.data.frame(macro_std) %>%
+  bind_cols(park_site_year = row.names(.), .) %>%
+  separate(data = ., col = park_site_year, into = c("park", "site", "year"),
+           sep = "_") %>%
+  gather(key = order, value = proportion, -park, -site, -year)
+
+noca_macro_uni_plot <- macro_props %>%
+  filter(park == "NOCA") %>%
+  ggplot() +
+  geom_bar(aes(x = year, y = proportion, fill = order),
+           stat = "identity", position = "fill", color = "gray48") +
+  facet_wrap(. ~ site) +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1),
+        legend.position = "bottom") +
+  scale_fill_viridis_d(option = "inferno") 
+```
+
+```{r echo = FALSE}
+noca_macro_uni_plot +
+  ggtitle(label = "NOCA macroinvert relative proportions by lake and year")
+
+```
+
+**Note** the replacement of Diptera by Amphipoda starting in 2014 in SM-02-02 (Upper Triplet).
+
+```{r}
+mora_macro_uni_plot <- macro_props %>%
+  filter(park == "MORA") %>%
+  ggplot() +
+  geom_bar(aes(x = year, y = proportion, fill = order),
+           stat = "identity", position = "fill", color = "gray48") +
+  facet_wrap(. ~ site) +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1),
+        legend.position = "bottom") +
+  scale_fill_viridis_d(option = "inferno") 
+```
+
+```{r echo = FALSE}
+mora_macro_uni_plot +
+    ggtitle(label = "MORA macroinvert relative proportions by lake and year")
+```
+
+
+```{r echo = FALSE}
+macro_uni_plots <- ggarrange(noca_macro_uni_plot, mora_macro_uni_plot,
+                             labels = c("NOCA", "MORA"), ncol = 1, nrow = 2,
+                             common.legend = TRUE, legend = "right",
+                             label.y = 1.05, font.label = list(size = 12)) %>%
+  annotate_figure(top = text_grob("Macroinvert order relative props by park and lake",
+                                  face = "bold", size = 16))
+
+ggsave(filename = "../figures/multivariate/macroinvert_combined_props_plot.png",
+       plot = macro_uni_plots, device = "png", width = 10, height = 8,
+       units = "in")
+```
+
+#### Distance-based redundancy analysis (dbRDA)
+
+vegan::capscale()/dbRDA() documentation: *Distance-based redundancy analysis (dbRDA) is an ordination method similar to Redundancy Analysis (rda), but it allows non-Euclidean dissimilarity indices, such as Manhattan or Bray–Curtis distance. Despite this non-Euclidean feature, the analysis is strictly linear and metric. If called with Euclidean distance, the results are identical to rda, but dbRDA will be less efficient. Functions capscale and dbrda are constrained versions of metric scaling, a.k.a. principal coordinates analysis, which are based on the Euclidean distance but can be used, and are more useful, with other dissimilarity measures. The functions can also perform unconstrained principal coordinates analysis, optionally using extended dissimilarities.*
+
+
+```{r}
+
+macro_std_ids <- macro_std_ids %>%
+  mutate(year = as.numeric(year))
+
+yearly_bigjoin <- bigjoin %>%
+  filter(variable %in% c("secchi_value_m", "AirTemp", "BotTemp",
+                         "MidTemp", "SurfTemp", "DO_top2m")) %>%
+  select(park_code, site_code, event_year, variable, value) %>%
+  unique() %>%
+  spread(key = variable, value = value)
+
+# Join the macros to yearly_bigjoin bc some data will be NA: both datasets
+# should have corresponding rows
+yearly_bigjoin_macro <- inner_join(x = macro_std_ids, y = yearly_bigjoin,
+                                   by = c("park" = "park_code",
+                                          "site" = "site_code",
+                                          "year" = "event_year"))
+
+# NOTE: macro_std_ids has 126 rows but the join cuts it down to 65...why?
+# I think this is because the macros might have better temporal coverage than
+# the variable in bigjoin...
+
+vis_dat(x = yearly_bigjoin_macro)
+```
+
+Now look at env variable correlations, but first check for and remove NAs
+```{r}
+# Down to 39 rows after removing NAs...
+yearly_bigjoin_macro <- na.omit(yearly_bigjoin_macro)
+
+corrplot(cor(select(yearly_bigjoin_macro, AirTemp:SurfTemp)), type = "upper", 
+         tl.col = "black", tl.srt = 45)
+
+# corr.test(x = select(yearly_bigjoin_macro, AirTemp:SurfaceTemp))
+```
+
+How about keep SurfTemp, drop other temps?
+```{r}
+corrplot(cor(select(yearly_bigjoin_macro, SurfTemp, DO_top2m, secchi_value_m)),
+         type = "upper", tl.col = "black", tl.srt = 45)
+
+corr.test(x = select(yearly_bigjoin_macro, SurfTemp, DO_top2m, secchi_value_m))
+
+```
+
+Looks like secchi and SurfTemp are correlated significantly, but the correlation is weak. I keep both for now.
+
+Run dbRDA. Note that it doesn't provide species score (capscale() does).  
+
+**Note** that in joining in the environmental data and removing NAs, we've lost `r nrow(macro_std) - nrow(yearly_bigjoin_macro)` rows (`r round((nrow(macro_std) - nrow(yearly_bigjoin_macro)) / nrow(macro_std), digits = 2) * 100`%) of data compared with the matrix used for producing the previous nmds output.
+```{r}
+
+macro_dbrda <- dbrda(formula = select(yearly_bigjoin_macro, `_Acari`:Veneroida) ~
+                       SurfTemp + DO_top2m + secchi_value_m, data = yearly_bigjoin_macro,
+                     distance = "bray")
+
+macro_dbrda
+
+autoplot(macro_dbrda)
+```
+
+```{r echo = FALSE}
+ggsave(filename = "../figures/multivariate/macroinvert_dbrda.png",
+       plot = autoplot(macro_dbrda) +
+         ggtitle("Distance-based RDA for macroinvert community"),
+       device = "png", width = 6, height = 6,
+       units = "in")
+```
+
+The first dbRDA axis accounts for `r round((eigenvals(macro_dbrda)["dbRDA1"] / sum(eigenvals(macro_dbrda)[grep(x = names(eigenvals(macro_dbrda)), pattern = "dbRDA")]))  * 100, digits = 2)`% of the variation. The second dbRDA axis accounts for `r round((eigenvals(macro_dbrda)["dbRDA2"] / sum(eigenvals(macro_dbrda)[grep(x = names(eigenvals(macro_dbrda)), pattern = "dbRDA")]))  * 100, digits = 2)`% of the variation. 
+
+
+```{r}
+# https://sites.ualberta.ca/~ahamann/teaching/renr690/Lab9b.pdf
+anova(macro_dbrda)
+anova(macro_dbrda, by = "axis", perm.max = 999)
+anova(macro_dbrda, by = "terms", perm.max = 999)
+```
+
+Run another NDMS, this time on the version of the community matrix that made it into the dbRDA. It's a subset of the full one used for the earlier nmds_3:
+```{r results="hide"}
+subset_nmds <- metaMDS(comm = select(yearly_bigjoin_macro, `_Acari`:Veneroida),
+                       distance = "bray", k = 2, trymax = 100)
+```
+
+```{r echo=FALSE}
+subset_nmds
+
+# Combine identity data with scores
+nmds_scores_subset <- cbind(as_tibble(scores(subset_nmds)),
+                            select(yearly_bigjoin_macro, park:year))
+
+
+park_nmds_subset_plot <- ggplot() +
+  # geom_text(data = species_scores, aes(x = NMDS1, y = NMDS2, label = order),
+  #           alpha = 0.5, size = 7) +
+  geom_point(data = nmds_scores_subset, aes(x = NMDS1, y = NMDS2, 
+                                            fill = park), size = 3, pch = 21) +
+  scale_fill_manual(values = inferno(15)[c(3, 8, 11)],
+                    name = "Park") +
+  annotate(geom = "label", x = -1, y = 1.25, size = 5,
+           label = paste("Stress: ", round(subset_nmds$stress, digits = 3))) +
+  theme_minimal() +
+  theme(legend.position = "right",
+        text = element_text(size = 24))
+
+year_nmds_subset_plot <- ggplot() +
+  # geom_text(data = species_scores, aes(x = NMDS1, y = NMDS2, label = order),
+  #           alpha = 0.5, size = 7) +
+  geom_point(data = nmds_scores_subset, aes(x = NMDS1, y = NMDS2, 
+                                            fill = as.factor(year)), size = 3, pch = 21) +
+  scale_fill_manual(values = viridis(11),
+                    name = "Year") +
+  annotate(geom = "label", x = -1, y = 1.25, size = 5,
+           label = paste("Stress: ", round(subset_nmds$stress, digits = 3))) +
+  theme_minimal() +
+  theme(legend.position = "right",
+        text = element_text(size = 24))
+
+site_nmds_subset_plot <- ggplot() +
+  # geom_text(data = species_scores, aes(x = NMDS1, y = NMDS2, label = order),
+  #           alpha = 0.5, size = 7) +
+  geom_point(data = nmds_scores_subset, aes(x = NMDS1, y = NMDS2, 
+                                            fill = site), size = 3, pch = 21) +
+  scale_fill_manual(values = magma(12),
+                    name = "Site") +
+  annotate(geom = "label", x = -1, y = 1.25, size = 5,
+           label = paste("Stress: ", round(subset_nmds$stress, digits = 3))) +
+  theme_minimal() +
+  theme(legend.position = "right",
+        text = element_text(size = 24))
+
+
+three_nmds_subset_plots <- ggarrange(park_nmds_subset_plot, year_nmds_subset_plot,
+                                     site_nmds_subset_plot) %>%
+  annotate_figure(top = text_grob("Macroinvert NMDS plots on subsetted data, colored by Park/Year/Site",
+                                  face = "bold", size = 16))
+
+ggsave(filename = "../figures/multivariate/macroinvert_combined_subset_nmds.png",
+       plot = three_nmds_subset_plots, device = "png", width = 10, height = 8,
+       units = "in")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

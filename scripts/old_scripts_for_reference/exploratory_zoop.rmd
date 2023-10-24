@@ -1,0 +1,201 @@
+---
+title: "NPS Zooplankton Exploration"
+author: "Matt Brousil"
+date: "August 19, 2019"
+output: html_document
+---
+```{r, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(visdat)
+library(vegan)
+library(janitor)
+```
+
+### Load up the data
+
+```{r}
+zoop <- read_excel("../data/NCCN_Zoops_Combined_For_FCA_May_2019.xlsx")
+```
+
+There's a row where "Collotheca pelagica" is pasted across three columns
+It is treated as an NA and Taxonid is retained as numeric
+Admittedly I don't have a full grasp of the last three cols, but I'll make
+the record match with the others of that species nearby:
+
+```{r}
+zoop[1487, "Taxa"] <- "ROT"
+zoop[1487, "Taxonid"] <- 5
+```
+
+### Quick view of the whole dataset:
+```{r}
+# Data types of the data frame
+vis_dat(zoop)
+# Missing data
+vis_miss(zoop)
+```
+
+Three additional records where Taxa and Taxonid aren't complete. They make sense:
+```{r}
+zoop %>% filter(is.na(Taxa) | is.na(Taxonid))
+```
+
+### Genus-species by year:
+```{r}
+zoop_lake_year_gensp <- zoop %>%
+  filter(!is.na(Taxa),
+         !is.na(Taxonid)) %>%
+  ggplot() +
+  geom_bar(aes(x = Year, y = Density, fill = GenSp),
+           stat = "identity", position = "fill") +
+  #geom_point(aes(x = Year, y = Density, color = Taxa)) +
+  facet_wrap(. ~ Lake) +
+  theme(axis.text.x = element_text(angle = 69, hjust = 1),
+        legend.position = "bottom") +
+  ggtitle("Relative densities of zooplankton species by lake and year")
+
+zoop_lake_year_gensp + theme(legend.position = "none")
+
+ggsave(filename = "../figures/paneled_by_lake/zoop_year_dens_gensp.png",
+       plot = zoop_lake_year_gensp, device = "png", width = 12, height = 12,
+       units = "in")
+```
+
+### Taxa by year:
+```{r}
+zoop_lake_year_taxa <- zoop %>%
+  filter(!is.na(Taxa),
+         !is.na(Taxonid)) %>%
+  ggplot() +
+  geom_bar(aes(x = Year, y = Density, fill = Taxa),
+           stat = "identity", position = "fill") +
+  #geom_point(aes(x = Year, y = Density, color = Taxa)) +
+  facet_wrap(. ~ Lake) +
+  theme(axis.text.x = element_text(angle = 69, hjust = 1),
+        legend.position = "right") +
+  ggtitle("Relative densities of zooplankton taxa by lake and year")
+
+zoop_lake_year_taxa
+
+ggsave(filename = "../figures/paneled_by_lake/zoop_year_dens_taxa.png",
+       plot = zoop_lake_year_taxa, device = "png", width = 12, height = 12,
+       units = "in")
+```
+
+## Try out some multivariate stuff
+
+### Communities across all years at the species level. Doesn't work:
+```{r}
+# Remove sp making up < 5%
+filtered_zoop <- zoop %>%
+  clean_names() %>%
+  filter(!is.na(taxa)) %>%
+  group_by(year, park, lake, taxa, gen_sp) %>%
+  summarise(sp_sum = sum(density)) %>%
+  group_by(year, park, lake) %>%
+  mutate(total_sum = sum(sp_sum, na.rm = T)) %>%
+  ungroup() %>%
+  mutate(prop = sp_sum / total_sum) %>%
+  filter(prop >= .05)
+
+zoop_mat <- filtered_zoop %>%
+  spread(key = gen_sp, value = sp_sum, fill = 0) %>%
+  data.frame() %>%
+  clean_names() %>%
+  select(bosmina_longirostris:synchaeta_sp)
+
+metaMDS(comm = zoop_mat, k = 2, try = 20)
+```
+
+### Communities at higher taxa level. Still doesn't work:
+```{r}
+zoop_mat_taxa <-  filtered_zoop %>%
+  filter(!is.na(taxa)) %>%
+  group_by(year, park, lake, taxa) %>%
+  summarise(taxa_sum = sum(sp_sum)) %>%
+  # Lines below removed bc no point in removing GenSp or Taxa twice? Already
+  # done for filtered_zoop
+  # mutate(prop = taxa_sum / sum(taxa_sum, na.rm = T)) %>%
+  # filter(prop >= .05) %>%
+  # select(-prop) %>%
+  spread(key = taxa, value = taxa_sum, fill = 0) %>%
+  data.frame() %>%
+  select(CLAD:ROT)
+
+metaMDS(comm = zoop_mat_taxa, k = 2, try = 20)
+```
+
+Overview of the taxa-level dataset:
+```{r}
+summary(filtered_zoop %>%
+  filter(!is.na(taxa)) %>%
+  group_by(year, park, lake, taxa) %>%
+  summarise(taxa_sum = sum(sp_sum)) %>%
+  mutate(prop = taxa_sum / sum(taxa_sum, na.rm = T)) %>%
+  filter(prop >= .05) %>%
+  spread(key = taxa, value = taxa_sum, fill = 0) %>%
+  data.frame() %>%
+  select(CLAD:ROT))
+
+```
+
+
+### NMDS for each lake separately, with zoops at species level: 
+```{r}
+
+spread_species <- filtered_zoop %>%
+  spread(key = gen_sp, value = sp_sum, fill = 0)
+
+map(.x = unique(filtered_zoop$lake),
+    ~ metaMDS(comm = filter(spread_species, lake == .) %>%
+                data.frame() %>%
+                clean_names() %>%
+                select(-c(year:prop)),
+              k = 2, try = 20))
+
+```
+
+### NMDS for each lake separately, with zoops at higher taxa level: 
+```{r}
+
+spread_taxa <- filter(filtered_zoop, !is.na(taxa)) %>%
+                group_by(year, park, lake, taxa) %>%
+                summarise(taxa_sum = sum(sp_sum)) %>%
+                mutate(prop = taxa_sum / sum(taxa_sum, na.rm = T)) %>%
+                filter(prop >= .05) %>%
+                spread(key = taxa, value = taxa_sum, fill = 0)
+
+map(.x = unique(filtered_zoop$lake),
+    ~ metaMDS(comm = filter(spread_taxa, lake == .) %>%
+                data.frame() %>%
+                select(CLAD:ROT),
+              k = 2, try = 20))
+
+```
+
+## CCA of environmental vars with zoops
+
+## CCA of watershed chars and multivariate lake vars
+
+## Zoop aggregation (ratios)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

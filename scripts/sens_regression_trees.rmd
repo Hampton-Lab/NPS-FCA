@@ -1,0 +1,149 @@
+---
+title: "Sen's regression trees"
+author: "Matt Brousil"
+date: "2020-04-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(rpart)
+library(partykit)
+```
+
+### Load the necessary data
+```{r}
+# All variables of interest from NPS
+bigjoin <- readRDS(file = "../data/analysis_outputs/bigjoin.rds")
+
+# Sen's slopes, calculated at lake level (i.e., not park-level mean)
+sens_data <- read.csv(file = "../data/analysis_outputs/sens_slopes_na_rm_lakelvl.csv",
+                      stringsAsFactors = FALSE)
+```
+
+#### Look at the data briefly:
+```{r}
+as_tibble(bigjoin)
+
+as_tibble(sens_data)
+```
+
+#### Prepare data for use
+Look at the variables from bigjoin that we're interested in. How many of them
+have multiple unique values per site? (i.e., multiple years of unique data?)
+```{r}
+bigjoin %>%
+  select(park_code, site_code, year, Elevation_m, elevmean_wshed, Surface_area_ha,
+         Watershed_area_ha, Watershed_area_to_lake_area_ratio, Depth_mean_m,
+         Depth_max, solar_jas, solar_dec, aspectns_lake, aspectns_wshed, 
+         forest, snowice, barren, SWE_May_snotel, salmo_adult_ever, BlueLineInlet,
+         BlueLineOutlet) %>%
+  unique() %>%
+  gather(key = variable, value = value,
+         Elevation_m:BlueLineOutlet) %>%
+  group_by(site_code, variable) %>%
+  distinct(value) %>%
+  count(site_code, variable) %>%
+  filter(n > 1) %>%
+  pull(variable) %>%
+  unique()
+```
+
+Clean up and join the bigjoin and sens variables:
+```{r}
+# Summarize variables that aren't static
+swe_may_snotel_summarize <- bigjoin %>%
+  select(park_code, site_code, year, SWE_May_snotel) %>%
+  group_by(park_code, site_code) %>%
+  summarize(SWE_May_snotel_mean = mean(SWE_May_snotel, na.rm = T))
+
+# Compile additional bigjoin vars of interest
+bigjoin_subset <- bigjoin %>%
+  select(park_code, site_code, Elevation_m, elevmean_wshed, Surface_area_ha,
+         Watershed_area_ha, Watershed_area_to_lake_area_ratio, Depth_mean_m,
+         Depth_max, solar_jas, solar_dec, aspectns_lake, aspectns_wshed, 
+         forest, snowice, barren, salmo_adult_ever, BlueLineInlet,
+         BlueLineOutlet) %>%
+  unique()
+
+bigjoin_subset <- full_join(x = bigjoin_subset, y = swe_may_snotel_summarize,
+                            by = c("park_code", "site_code")) 
+
+sens_wide <- sens_data %>%
+  spread(key = variable_name, value = slope)
+
+sens_interest <- sens_wide %>%
+  select(park, lake,
+         # Explanatory sens vars
+         AirTemp, SWE_May,
+         # Response sens vars
+         secchi_value_m, Chlorophyll, SurfTemp, `Total N`, `Total P`, DO_top2m,
+         pH_top2m)
+
+regression_data <- full_join(x = bigjoin_subset, y = sens_interest,
+                             by = c("park_code" = "park",
+                                    "site_code" = "lake"))
+```
+
+#### Take a look at variable correlations:
+```{r}
+corrplot::corrplot(corr = cor(select(regression_data, -park_code,
+                                     -site_code, -contains("Blue")),
+                              use = "complete"),
+                   type = "lower")
+```
+Look at solar_dec and ice cover correlation
+```{r}
+ice_data <- bigjoin %>%
+  select(park_code, site_code, ice_out_doy, ice_in_doy, snowice) %>%
+  unique() %>%
+  mutate(ice_length = ice_in_doy - ice_out_doy) %>%
+  filter(!is.na(ice_length))
+
+ice_data %>%
+  ggplot() +
+  geom_point(aes(x = ice_length, y = snowice, color = site_code))
+```
+
+Hard to draw much info from this as each lake appears to have a single value for snowice cover. Going to ask NPS what year these data originated from.
+
+
+#### Regression trees
+
+##### Fit trees for all response vars at once:
+```{r}
+sens_trees <- map(.x = select(regression_data, secchi_value_m:pH_top2m),
+                  .f = ~ rpart(formula = .x ~ AirTemp + SWE_May + Elevation_m +
+                                 elevmean_wshed + Surface_area_ha + Watershed_area_ha +
+                                 Watershed_area_to_lake_area_ratio + Depth_mean_m +
+                                 Depth_max + solar_jas + solar_dec + aspectns_lake +
+                                 aspectns_wshed + forest + snowice + barren +
+                                 salmo_adult_ever + BlueLineInlet + BlueLineOutlet +
+                                 SWE_May_snotel_mean,
+                               data = regression_data))
+```
+
+##### View trees
+```{r}
+map2(.x = sens_trees,
+     .y = names(sens_trees),
+     .f = ~ {
+       plot(x = as.party(.x),
+            main = paste("Reponse variable: ", .y),
+            terminal_panel = node_boxplot)
+     })
+```
+
+
+##### Tree diagnostics
+```{r}
+map2(.x = sens_trees,
+     .y = names(sens_trees),
+     .f = ~ {
+       print(paste("Response variable: ", .y))
+       printcp(.x)
+       plotcp(.x)
+       par(mfrow = c(1,2))
+       rsq.rpart(.x)
+     })
+```

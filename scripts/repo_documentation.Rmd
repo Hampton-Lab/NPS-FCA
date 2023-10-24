@@ -1,0 +1,103 @@
+---
+title: "FCA Repo Documentation"
+author: "Matt Brousil"
+date: "April 2021"
+output:
+  html_document:
+    theme: readable
+    toc: yes
+    toc_float:
+      collapsed: yes
+    toc_depth: 5
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(fs)
+```
+
+This document outlines the main components of the GitHub repository used by the Washington State University and Baylor University team for the Mountain Lakes FCA. It currently covers mostly scripts that are necessary for the manuscript analysis workflow.
+
+### Overview
+As of `r Sys.Date()` the [repository](https://github.com/mbrousil/NPS-FCA) is private, owned by [Matthew Brousil](https://github.com/mbrousil), and its folder structure is as follows:
+
+
+```{r echo = FALSE}
+fs::dir_tree(path = "../", recurse = 1, type = "directory")
+```
+
+<br>
+
+`data`, `documents`, `figures`, and `scripts` are the main folders.
+
+<br>
+
+#### **`data`**
+`data` contains all data provided to WSU by the NPS team, as well as all data generated through cleaning or analysis steps taken by WSU. As a general rule, the `analysis_outputs` subfolder of `data` contains datasets generated from scripts written by the WSU team. Examples include `bigjoin.rds`, the main dataset produced by joining many NPS datasets together, and other data subsets produced through join and filter operations for modeling purposes.
+
+#### **`documents`**
+This folder is intended for storing text documents (i.e., Word, PDF) related to the project. Some examples include documentation on the NPS database queries used to export datasets, or to-do lists resulting from NPS-WSU meetings.
+
+#### **`figures`**
+The `figures` folder holds most figures produced by data exploration and analysis scripts written by WSU. There are some subfolders included to further organize figures pertaining to specific analyses, especially when many plots were created (e.g., one per variable, lake, etc.).
+
+#### **`scripts`**
+`scripts` contains all scripts written by WSU for the project. Generally speaking, it is not organized with subdirectories for specific tasks except for one or two small exceptions.
+
+<br>
+
+### Core scripts
+
+#### **`bigjoin.R`**
+`bigjoin` is the main workhorse of the WSU script ecosystem. Its main purpose is to join together a wide variety of datasets provided by NPS into a single data frame that is saved as a `.rds` file (`bigjoin.rds`, in `data/analysis_outputs`) for use in downstream analytical scripts. The output data frame contains records mostly on an annual basis by lake and park. Note that there are columns containing full-length names for lakes and parks (`Lake`, `Park`) as well as short names (`site_code`, `park_code`). The output file contains both variables in "wide" format, meaning that there is a separate column for each variable, as well as some variables in "long" format. Long format variables are contained in the `variable` column, with their values stored in the `value` column. There are some variable stored in both wide and long format in `bigjoin.rds`.
+
+#### **`analysispowers_v*`**
+This is the primary analysis script used by Steve Powers for the manuscript. It contains his modeling workflow and code for building the associated plots. It depends on `bigjoin.rds` and `models_hypoth.R`.
+
+#### **`models_hypoth.R`**
+A script that defines models used in the `analysispowers_v*.R `script and exports model summaries. It depends on `mod_covar.R`.
+
+#### **`mod_covar.R`**
+\<Insert description\>
+
+#### **`create_name_match_table.R`**
+This script generates a `.rds` file containing a data frame of `site_code`s matched to variations on the informal name used for each lake. The data frame is used across several scripts to translate lake names with multiple spellings into standardized lake codes. 
+
+#### **`continuous_temperature_processing.R`**
+This script reads in all files from `data/FCA_ContinuousTempData/` that contain data from continuous temperature loggers, cleans the data, and compiles it into daily- and monthly-level datasets for use in `bigjoin.R`.
+
+#### **`create_zoop_tree_datasets`**
+This creates dataset for use in zooplankton and macroinvertebrate analyses by WSU. It exports datasets of zooplankton (taxa level grouping) with environmental data, zooplankton (genus level grouping) with environmental data, zooplankton (with calanoid and cyclopoid classifications) with environmental data, class-level macroinvertebrate summaries with environmental data, and macroinvertebrate data grouped to mobility and feeding guilds along with environmental data.
+
+#### **`new_zoop_analyses_sept2020`**
+A script that contains most of the recent zooplankton and macroinvertebrate regression tree analyses by Stephanie Hampton and/or Matt Brousil.
+
+#### **`zonal_stats_watershed.R`**
+This script calculates zonal statistics from annual nutrient deposition data taken from the [NADP](http://nadp.slh.wisc.edu/NTN/annualmapsByYear.aspx). It uses watershed polygons from NPS as the shapefiles for data extraction.
+
+#### **`brousil_temporal_trends_figure_script.R`**
+This script is used to create the figures in `figures/temporal_trends`, which are trend line plots showing year-to-year changes in each variable provided to WSU by NPS. It creates figures with both "raw" and z-scored versions of the variables.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

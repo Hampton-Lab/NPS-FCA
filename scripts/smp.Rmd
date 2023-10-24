@@ -1,0 +1,29 @@
+---
+output: html_document
+---
+
+library(nlme) # needed for mixed model
+library(broom);library(tidyr)
+library(tidyverse);library(broom.mixed)
+library(car);library(reshape2)
+library(corrplot)
+library(ggplot2);library(ggrepel)
+#library(rpart)
+library(gridExtra)
+library(effects); library(ggbeeswarm)
+
+
+
+# National Parks Lakes
+# OLYM, MORA, NOCA
+
+
+* [snodas](https://app.climateengine.org/climateEngine)
+
+```
+bigjoin <- readRDS(file = file.path("..","data", "analysis_outputs", "bigjoin.rds"))
+```
+
+
+
+

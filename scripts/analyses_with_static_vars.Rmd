@@ -1,0 +1,522 @@
+---
+title: "Analyses with static lake/watershed variables"
+author: "Matt Brousil"
+date: "7/8/2020"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+## A script that uses PCA and regression tree approaches to classify lakes
+
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(readxl)
+library(factoextra)
+library(viridis)
+library(vegan)
+library(rpart)
+library(partykit)
+library(rpart.plot)
+library(ggrepel)
+library(lubridate)
+library(ggpubr)
+
+```
+
+```{r}
+physio <- read_excel(
+  path = file.path("..",
+                   "data",
+                   "analysis_outputs",
+                   "study-site-tables.xlsx"))
+
+# Grab bigjoin for land cover
+bigjoin <- readRDS(file = "../data/analysis_outputs/bigjoin.rds")
+
+
+bigjoin_subset <- bigjoin %>%
+  select(park_code, site_code, solar_jas, SWE_May, flush_index_noSWE,
+         forest:snowice) %>%
+  unique() %>%
+  group_by(park_code, site_code) %>%
+  summarize_all(.funs = ~ mean(., na.rm = TRUE)) %>%
+  left_join(x = ., y = select(bigjoin, site_code, Aspect) %>% unique(),
+            by = c("site_code"))
+
+# Name matching table
+match_sites <- readRDS(file = file.path("..",
+                                        "data",
+                                        "name_site_matches.rds"))
+```
+
+
+Select the static variables that go into the analyses
+```{r}
+# Select continuous variables
+physio_subset <- physio %>%
+  select(Park_code, Lake, Elevation_m, Watershed_area_to_lake_area_ratio,
+         Surface_area_ha, Watershed_area_ha, Depth_mean_m, Volume_m3,
+         BlueLineOutlet) %>%
+  left_join(x = ., y = match_sites,
+            by = c("Lake" = "old_name")) %>%
+  select(Park_code, site_code, everything(), -Lake) %>%
+  full_join(x = ., y = bigjoin_subset, by = c("Park_code" = "park_code",
+                                              "site_code"))
+
+```
+
+
+
+### PCA
+
+Scale a numeric subset of the data
+```{r}
+physio_scale <- physio_subset %>%
+  select(Elevation_m:snowice) %>%
+  mutate_if(.predicate = is.numeric,
+            .funs = ~ scale(.)) %>%
+  cbind(Park_code = physio_subset$Park_code, .)
+
+row.names(physio_scale) <- paste0(physio_subset$Park_code,
+                                  "_", physio_subset$site_code)
+```
+
+
+#### Run PCA for numeric variables
+```{r}
+physio_pca <- rda(na.omit(select_if(.tbl = physio_scale,
+                                    .predicate = is.numeric)))
+```
+
+#### PCA Results:
+```{r}
+physio_pca
+```
+
+```{r, echo=FALSE}
+biplot(physio_pca,
+       display = c("sites", 
+                   "species"),
+       type = c("text",
+                "points"))
+```
+
+Add hulls (currently for park)  
+```{r}
+# https://rpubs.com/brouwern/veganpca#:~:text=PCA%20(Principal%20Components%20Analysis)%20is,is%20also%20developing%20biplot%20tools).
+biplot(physio_pca,
+       display = c("sites", 
+                   "species"),
+       type = c("text",
+                "points"))
+ordihull(physio_pca,
+         group = physio_scale$Park_code)
+```
+
+
+#### Run PCA outside of vegan for another plotting option
+```{r}
+physio_pca <- prcomp(x = select_if(.tbl = physio_scale,
+                                   .predicate = is.numeric),
+                     scale. = FALSE)
+```
+
+#### PCA Results:
+```{r}
+physio_pca
+```
+
+Scree plot
+```{r}
+fviz_eig(physio_pca)
+```
+
+Bioplot & variable contribution
+```{r, fig.show="hold", out.width="50%"}
+
+
+fviz_pca_biplot(X = physio_pca, col.var = viridis(n = 5)[2],
+                col.ind = plasma(n = 5)[4], ggtheme = theme_bw())
+
+
+fviz_pca_var(X = physio_pca, col.var = "contrib", repel = TRUE,
+             gradient.cols = viridis(n = 5, begin = 0, end = 1),
+             ggtheme = theme_bw())
+```
+
+
+### Regression tree for chlorophyll ~ static vars
+
+```{r}
+mean_chl <- bigjoin %>%
+  select(park_code, site_code, event_year, variable, value) %>%
+  filter(variable == "Chlorophyll") %>%
+  spread(key = variable, value = value) %>%
+  group_by(park_code, site_code) %>%
+  summarise(mean_chl = mean(Chlorophyll))
+```
+
+
+```{r}
+reg_tree_data <- physio_subset %>%
+  full_join(x = ., y = mean_chl, by = c("Park_code" = "park_code",
+                                        "site_code"))
+```
+
+Specify the tree, setting minimum number of obs per node before a split to be 10
+```{r}
+tree <- rpart(formula = mean_chl ~ Elevation_m +  Watershed_area_to_lake_area_ratio +
+                Depth_mean_m + forest + barren + solar_jas + Volume_m3 +
+                SWE_May + flush_index_noSWE,
+              data = reg_tree_data, minsplit = 10)
+
+plot(x = as.party(tree),
+     main = "Chlorophyll",
+     terminal_panel = node_boxplot)
+
+plotcp(tree)
+ptree <- prune(tree, cp = 0.025);
+rpart.plot(ptree, main="Average Chlorophyll")
+png("NPS_FCA_chl_tree.png", width=1000, height=800)
+```
+
+
+Based on the cross-validation plot, the ideal tree size is 1...
+
+
+### Slopes of (top 2m water temp ~ SNOTEL/DAS) ~ static vars
+
+Import Power's data object from his analysis script (v32, ~ line 604) 
+```{r}
+
+powers_profile_data <- readRDS(file = "../data/analysis_outputs/sp_dataplot.rds")
+
+powers_profile_data <- powers_profile_data %>%
+  separate(data = .,
+           col = park_site,
+           into = c("park", "site"),
+           sep = " ",
+           extra = "merge")
+
+plot_wtempSWE_snotel <- ggplot(data = powers_profile_data,
+                               aes(x = SWE_May_snotel, y = value, group = "black",
+                                   color = (park_code), label = short_code)) +
+  geom_line(aes(group = short_code), alpha = 0.5)+
+  geom_text_repel(data = filter(powers_profile_data, snowyrlo_snotel == 1),
+                  size = 2.5, segment.color = "black", alpha = 1,
+                  segment.size = 0.2, box.padding = 0.1) + 
+  xlab("May SWE (cm), SNOTEL")+
+  ylab(paste0("Water temperature (", intToUtf8(176), "C), top 2m"))+
+  theme_bw()+
+  theme(legend.position = "none")+
+  theme(strip.text.x = element_text(),
+        axis.title.x = element_text(vjust = -0.5)) + 
+  scale_colour_viridis_d(end = 0.85) +
+  xlim(x = c(0, 325))
+
+plot_wtempSWE_snodas <- ggplot(powers_profile_data,
+                               aes(x = SWE_May_snodas, y = value,
+                                   group = "black", color = (park_code),
+                                   label = short_code)) +
+  geom_line(aes(group = short_code), alpha = 0.5)+
+  geom_text_repel(data = filter(powers_profile_data, snowyrlo_snotel == 1),
+                  size = 2.5, segment.color = "black", alpha = 1,
+                  segment.size = 0.2, box.padding = 0.1) + 
+  xlab("May SWE (cm), SNODAS") +
+  ylab(paste0("Water temperature (", intToUtf8(176), "C), top 2m"))+
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(strip.text.x = element_text(),
+        axis.title.x = element_text(vjust = -0.5)) + 
+  scale_colour_viridis_d(end = 0.85) +
+  xlim(x = c(0, 325))
+
+```
+
+```{r}
+
+lake_list <- split(powers_profile_data, f = powers_profile_data$short_code)
+
+snodas_models <- map_df(.x = lake_list,
+                        .f = ~ {
+                          
+                          model_output <- lm(formula = value  ~ SWE_May_snodas,
+                                             data = .x)$coefficients[2]
+                          
+                          output <- tibble(
+                            park = unique(.x$park),
+                            site = unique(.x$site),
+                            slope = model_output)
+                          
+                          return(output)
+                          
+                        })
+
+snotel_models <- map_df(.x = lake_list,
+                        .f = ~ {
+                          
+                          model_output <- lm(formula = value  ~ SWE_May_snotel,
+                                             data = .x)$coefficients[2]
+                          
+                          output <- tibble(
+                            park = unique(.x$park),
+                            site = unique(.x$site),
+                            slope = model_output)
+                          
+                          return(output)
+                          
+                        })
+
+```
+
+```{r}
+# Going to recreate SP's plot but using actual lm() outputs to make sure that
+# the regression coefficient values are accurate:
+# https://stackoverflow.com/questions/44865508/using-ggplot2-to-plot-an-already-existing-linear-model
+
+snodas_predict <-  map_df(.x = lake_list,
+                          .f = ~ {
+                            
+                            model_output <- lm(formula = value  ~ SWE_May_snodas,
+                                               data = .x)
+                            
+                            output <- cbind(.x,
+                                            fit_source = "snodas",
+                                            fit = predict(model_output),
+                                            slope = round(model_output$coefficients[2],
+                                                          digits = 2))
+                            
+                            return(output)
+                            
+                          })
+
+snodas_predict_plot <- snodas_predict %>%
+  ggplot(data = .,
+         aes(x = SWE_May_snodas, y = fit,
+             group = "black", color = (park_code))) +
+  geom_line(aes(group = short_code), alpha = 0.5)+
+  geom_text_repel(data = filter(snodas_predict, snowyrlo_snotel == 0),
+                  size = 2.5, segment.color = "black", alpha = 1,
+                  segment.size = 0.2, box.padding = 0.1,
+                  mapping = aes(label = paste0(short_code, "_", slope))) + 
+  xlab("May SWE (cm), SNODAS") +
+  ylab(paste0("Water temperature (", intToUtf8(176), "C), top 2m"))+
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(strip.text.x = element_text(),
+        axis.title.x = element_text(vjust = -0.5)) + 
+  scale_colour_viridis_d(end = 0.85) +
+  xlim(x = c(0, 325))
+
+snotel_predict <-  map_df(.x = lake_list,
+                          .f = ~ {
+                            
+                            model_output <- lm(formula = value  ~ SWE_May_snotel,
+                                               data = .x)
+                            
+                            output <- cbind(.x,
+                                            fit_source = "snotel",
+                                            fit = predict(model_output),
+                                            slope = round(model_output$coefficients[2],
+                                                          digits = 2))
+                            
+                            return(output)
+                            
+                          })
+
+snotel_predict_plot <- snotel_predict %>%
+  ggplot(data = .,
+         aes(x = SWE_May_snotel, y = fit,
+             group = "black", color = (park_code))) +
+  geom_line(aes(group = short_code), alpha = 0.5)+
+  geom_text_repel(data = filter(snotel_predict, snowyrlo_snotel == 0),
+                  size = 2.5, segment.color = "black", alpha = 1,
+                  segment.size = 0.2, box.padding = 0.1,
+                  mapping = aes(label = paste0(short_code, "_", slope))) + 
+  xlab("May SWE (cm), snotel") +
+  ylab(paste0("Water temperature (", intToUtf8(176), "C), top 2m"))+
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(strip.text.x = element_text(),
+        axis.title.x = element_text(vjust = -0.5)) + 
+  scale_colour_viridis_d(end = 0.85) +
+  xlim(x = c(0, 325))
+
+ggarrange(plot_wtempSWE_snodas, snodas_predict_plot,
+          plot_wtempSWE_snotel, snotel_predict_plot)
+
+```
+
+```{r, include=FALSE}
+# Is each predicted ("fit") value equivalent to the actual value?
+snodas_predict %>%
+  select(site, year, variable, value, fit, SWE_May_snodas) %>%
+  {
+
+    round(.$fit, digits = 2) == round(.$value, digits = 2)
+    
+  } %>%
+  # Is the whole vector of logical tests TRUE?
+  all()
+
+snotel_predict %>%
+  select(site, year, variable, value, fit, SWE_May_snotel) %>%
+  {
+
+    round(.$fit, digits = 2) == round(.$value, digits = 2)
+    
+  } %>%
+   # Is the whole vector of logical tests TRUE?
+ all()
+```
+
+```{r}
+# First join coefficient datasets, then update site names, then add
+# the static variables
+swe_modeling_data <- full_join(x = snodas_models, y = snotel_models,
+                               by = c("park", "site"),
+                               suffix = c(.x = "_snodas", .y = "_snotel")) %>%
+  left_join(x = ., y = match_sites, by = c("site" = "old_name")) %>%
+  left_join(x = ., y = physio_subset, by = c("park" = "Park_code",
+                                             "site_code"))
+
+```
+
+
+```{r}
+# Set up a tree using all variables, but leave out slope_snodas as a predictor
+snodas_tree <- rpart(formula = slope_snodas ~ Elevation_m +
+                       Watershed_area_to_lake_area_ratio + Surface_area_ha +
+                       Watershed_area_ha + Depth_mean_m + forest + shrub + meadow +
+                       barren + snowice,
+                     data = swe_modeling_data, minsplit = 10)
+
+plot(x = as.party(snodas_tree),
+     main = "SNODAS Slopes",
+     terminal_panel = node_boxplot)
+
+plotcp(snodas_tree)
+
+```
+
+
+```{r}
+
+snotel_tree <- rpart(formula = slope_snotel ~ Elevation_m +
+                       Watershed_area_to_lake_area_ratio + Depth_mean_m + forest + 
+                       barren,
+                     data = swe_modeling_data, minsplit = 10)
+
+plot(x = as.party(snotel_tree),
+     main = "SNOTEL Slopes",
+     terminal_panel = node_boxplot)
+
+plotcp(snotel_tree)
+# If the snotel model is in the ballpark, it’s highest elevation
+# forested lakes with shallow depths that have the anomalous slopes
+
+```
+
+
+
+### Comparison of weekly (continuous) surface temp vs profile temp @ top 2m
+**Note** that weekly temps are not calculated around a specific point, but based on the calendar year. So if we'd like to compare means of weeks centered, e.g., on the date a profile measurement was taken, we'll have to change this. [This](https://www.storybench.org/how-to-calculate-a-rolling-average-in-r/) might show what it would take.
+```{r}
+
+daily_temps <- read.csv(file = "../data/analysis_outputs/all-daily-temp-summaries.csv",
+                        stringsAsFactors = FALSE) %>%
+  select(obs_year:mean_value) %>%
+  filter(measure == "SurfaceTemp") %>%
+  left_join(x = ., y = match_sites, by = c("lake" = "old_name")) %>%
+  select(park, site_code, everything(), -lake)
+
+profile_data <- read_excel(
+  path = file.path("..",
+                   "data",
+                   "NPS_NCCN_Mtn_Lakes_Exports",
+                   "qs_b364_Water_Column_Profile_Data_20200723_160058.xlsx"),
+  col_types = c("text", "text", "text", "numeric", "date", "logical", "numeric",
+                "numeric", "date", "text", "logical", "numeric", "text", "text",
+                "text", "date", "text"))%>%
+  left_join(x = ., y = match_sites, by = c("Site_name" = "old_name")) %>%
+  select(Park_code, site_code, everything(), -Site_code) %>%
+  mutate(week_number = week(Start_date))
+
+
+profile_dates <- profile_data %>%
+  select(Park_code, site_code, Start_date, Event_year, week_number)
+
+# Summarize daily temps by week, only for weeks that match to profile temp
+# measurement events
+weekly_temps <- daily_temps %>%
+  mutate(new_date = ymd(truncated = 1,
+                        paste(obs_year, obs_month, obs_day, sep = "-")),
+         week_number = week(new_date)) %>%
+  semi_join(x = ., y = profile_dates, by = c("park" = "Park_code",
+                                             "site_code",
+                                             "obs_year" = "Event_year",
+                                             "week_number")) %>%
+  group_by(park, site_code, obs_year, week_number) %>%
+  summarise(mean_surf_temp = mean(mean_value))
+
+# Pull the profile temp vals from bigjoin (where they've been aggregated already)
+profile_temps <- bigjoin %>%
+  select(park_code, site_code, start_date, event_year, variable, value) %>%
+  filter(variable == "ProfTemp_top2m") %>%
+  mutate(week_number = week(start_date))
+
+# Join daily and profile temps based on week in which they occurred
+joined_temps <- full_join(x = weekly_temps, y = profile_temps,
+                          by = c("park" = "park_code",
+                                 "site_code",
+                                 "obs_year" = "event_year",
+                                 "week_number")) %>%
+  spread(key = variable, value = value) %>%
+  # Remove Hoh, because of lake of continuous data (expected, right?)
+  filter(site_code != "Hoh")
+
+ggplot(data = joined_temps) +
+  geom_point(aes(x = ProfTemp_top2m, y = mean_surf_temp, color = site_code))
+
+ggplot(data = joined_temps) +
+  geom_point(aes(x = ProfTemp_top2m, y = mean_surf_temp)) +
+  facet_wrap(. ~ site_code) +
+  geom_smooth(method = "lm", aes(x = ProfTemp_top2m, y = mean_surf_temp),
+              se = FALSE)
+
+```
+
+```{r, include=FALSE}
+model_summaries <- map_df(.x = split(x = joined_temps, f = joined_temps$site_code),
+                          .f = ~ {
+                            
+                            temp_lm <- lm(formula = ProfTemp_top2m ~ mean_surf_temp, data = .x)
+                            
+                            coefs <- temp_lm$coefficients
+                            locs <- .x %>% ungroup() %>% select(park, site_code) %>% unique()
+                            adj_rsq <- summary(temp_lm)$adj.r.squared
+                            coef_p_value <- summary(temp_lm)$coefficients[8]
+                            
+                            return(data.frame(locs$park, locs$site_code, coefs, adj_rsq, coef_p_value))
+                          })
+#export R script from Rmd file
+#library(knitr)
+#purl("analyses_with_static_vars.Rmd")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

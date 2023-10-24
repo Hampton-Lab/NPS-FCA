@@ -1,0 +1,296 @@
+[1] "############  temperature  ####################################################################################################"
+                                 Value    Std.Error  DF    t-value      p-value
+snowyrmid:SWE_May_snotel -3.402359e-02 6.566398e-03 140 -5.1814696 7.527570e-07
+snowyrlo:SWE_May_snotel  -4.523997e-02 1.470062e-02  35 -3.0774184 4.041115e-03
+snowyrhi:SWE_May_snotel  -2.955163e-02 1.556473e-02  35 -1.8986281 6.588283e-02
+snowyrmid:solar_jas       3.868513e-03 2.998421e-04  35 12.9018340 7.307955e-15
+snowyrlo:solar_jas        3.196583e-03 2.826793e-04  35 11.3081591 3.089895e-13
+snowyrhi:solar_jas        3.284899e-03 7.335287e-04  35  4.4782151 7.670723e-05
+snowyrmid:Volume_m3       7.639442e-06 8.148045e-06  35  0.9375798 3.548856e-01
+snowyrlo:Volume_m3        1.283813e-05 1.031024e-05  35  1.2451820 2.213373e-01
+snowyrhi:Volume_m3       -5.353296e-06 1.070639e-05  35 -0.5000094 6.201978e-01
+[1] "####################################################################"
+[1] "############  secchi  #################################"
+                           Value Std.Error DF    t-value    p-value
+snowyrmid:Chlorophyll  1.9199658 0.9400204 38  2.0424725 0.04808782
+snowyrlo:Chlorophyll  -0.1322756 0.1758721 38 -0.7521125 0.45661706
+snowyrhi:Chlorophyll   2.0914408 0.9144403 38  2.2871266 0.02784700
+[1] "####################################################################"
+[1] "############  chlorophyll  #################################"
+                                 Value    Std.Error DF      t-value   p-value
+snowyrmid:TotalN          2.883687e+00 1.655604e+01 31  0.174177308 0.8628586
+snowyrlo:TotalN           9.188552e+00 6.092516e+00 31  1.508170283 0.1416358
+snowyrhi:TotalN          -1.555395e-01 1.311865e+01 31 -0.011856364 0.9906162
+snowyrmid:TotalP          9.395985e+01 1.435604e+02 31  0.654497193 0.5176184
+snowyrlo:TotalP           1.762602e+02 1.193124e+02 31  1.477300347 0.1496833
+snowyrhi:TotalP           1.405268e+02 3.130213e+02 31  0.448936740 0.6566001
+snowyrmid:solar_jas      -1.940899e-05 2.899421e-04 31 -0.066940927 0.9470586
+snowyrlo:solar_jas       -1.398150e-04 2.178172e-04 31 -0.641891295 0.5256622
+snowyrhi:solar_jas        6.195306e-05 1.272614e-04 31  0.486817403 0.6298121
+snowyrmid:ProfTemp_top2m  1.327468e-03 1.357304e-01 31  0.009780178 0.9922593
+snowyrlo:ProfTemp_top2m   4.084160e-02 7.223509e-02 31  0.565398280 0.5758725
+snowyrhi:ProfTemp_top2m  -1.341442e-02 6.038454e-02 31 -0.222149938 0.8256542
+                                 Value    Std.Error DF     t-value   p-value
+snowyrmid:TotalN          4.070658e+00 1.644566e+01 34  0.24752165 0.8059932
+snowyrlo:TotalN           9.958771e+00 6.040668e+00 34  1.64862072 0.1084367
+snowyrhi:TotalN           3.554042e-01 1.197368e+01 34  0.02968211 0.9764941
+snowyrmid:solar_jas       2.652388e-05 2.836307e-04 34  0.09351555 0.9260429
+snowyrlo:solar_jas       -9.042581e-05 2.148327e-04 34 -0.42091263 0.6764677
+snowyrhi:solar_jas        9.575288e-05 1.206180e-04 34  0.79385244 0.4327872
+snowyrmid:ProfTemp_top2m  2.466312e-03 1.345165e-01 34  0.01833465 0.9854791
+snowyrlo:ProfTemp_top2m   4.599877e-02 7.151617e-02 34  0.64319405 0.5244128
+snowyrhi:ProfTemp_top2m  -1.703583e-02 5.998675e-02 34 -0.28399326 0.7781379
+                                 Value    Std.Error DF    t-value   p-value
+snowyrmid:TotalP          9.516587e+01 1.424676e+02 34  0.6679825 0.5086541
+snowyrlo:TotalP           1.903412e+02 1.181786e+02 34  1.6106224 0.1165084
+snowyrhi:TotalP           1.390615e+02 2.857358e+02 34  0.4866786 0.6296088
+snowyrmid:solar_jas      -4.191493e-05 2.578826e-04 34 -0.1625349 0.8718468
+snowyrlo:solar_jas       -1.204943e-04 2.160364e-04 34 -0.5577497 0.5806695
+snowyrhi:solar_jas        6.169824e-05 1.246237e-04 34  0.4950764 0.6237307
+snowyrmid:ProfTemp_top2m  1.900859e-02 8.951847e-02 34  0.2123426 0.8331077
+snowyrlo:ProfTemp_top2m   7.889022e-02 6.724939e-02 34  1.1730994 0.2489091
+snowyrhi:ProfTemp_top2m  -1.366607e-02 5.616663e-02 34 -0.2433129 0.8092250
+                      Value  Std.Error DF   t-value    p-value
+snowyrmid:TotalN   2.138654   7.932386 37 0.2696105 0.78895792
+snowyrlo:TotalN    9.099054   3.647073 37 2.4948921 0.01718975
+snowyrhi:TotalN    1.786432   9.841915 37 0.1815126 0.85695596
+snowyrmid:TotalP  84.878218 115.332005 37 0.7359468 0.46640337
+snowyrlo:TotalP  168.032585 104.976096 37 1.6006747 0.11795399
+snowyrhi:TotalP  193.748520 277.873227 37 0.6972551 0.49000143
+[1] "####################################################################"
+[1] "############  nitrogen  #################################"
+                                 Value    Std.Error DF  t-value      p-value
+snowyrmid:forest          0.0008282491 0.0002545939 37 3.253217 2.439171e-03
+snowyrlo:forest           0.0013991576 0.0002545939 37 5.495645 3.026732e-06
+snowyrhi:forest           0.0004474187 0.0002545939 37 1.757382 8.712509e-02
+snowyrmid:N_dep_1985_2015 0.0063254401 0.0053675360 37 1.178463 2.461359e-01
+snowyrlo:N_dep_1985_2015  0.0094959067 0.0053675360 37 1.769137 8.511386e-02
+snowyrhi:N_dep_1985_2015  0.0054137022 0.0053675360 37 1.008601 3.197168e-01
+[1] "####################################################################"
+[1] "############  phosphorus  #################################"
+                        Value    Std.Error DF  t-value      p-value
+snowyrmid:forest 5.893067e-05 1.015541e-05 40 5.802884 8.946127e-07
+snowyrlo:forest  4.606284e-05 1.015541e-05 40 4.535794 5.128377e-05
+snowyrhi:forest  1.648751e-05 1.015541e-05 40 1.623520 1.123342e-01
+[1] "####################################################################"
+[1] "############  SO4  #################################"
+                                Value  Std.Error DF  t-value     p-value
+snowyrmid:SO4_dep_1985_2015 0.1514663 0.05465468 40 2.771333 0.008430974
+snowyrlo:SO4_dep_1985_2015  0.1752753 0.06537369 40 2.681128 0.010608110
+snowyrhi:SO4_dep_1985_2015  0.1660422 0.06537369 40 2.539893 0.015077125
+[1] "####################################################################"
+[1] "############  Cl  #################################"
+                                Value   Std.Error DF  t-value      p-value
+snowyrmid:Cl_dep_1985_2015 0.02091958 0.002487991 40 8.408223 2.229845e-10
+snowyrlo:Cl_dep_1985_2015  0.02032839 0.003218553 40 6.316001 1.699477e-07
+snowyrhi:Cl_dep_1985_2015  0.01439647 0.003218553 40 4.472963 6.238408e-05
+[1] "####################################################################"
+[1] "############  pH  #################################"
+                            Value    Std.Error DF    t-value      p-value
+snowyrmid:hydroio    7.056380e+00 2.675332e-01 31 26.3757167 8.451636e-23
+snowyrlo:hydroio     7.211624e+00 3.353704e-01 31 21.5034590 3.447518e-20
+snowyrhi:hydroio     6.888067e+00 3.353704e-01 31 20.5386832 1.306752e-19
+snowyrmid:hydroiso   7.048681e+00 4.303765e-01 31 16.3779421 8.182132e-17
+snowyrlo:hydroiso    7.820836e+00 5.400832e-01 31 14.4807990 2.422027e-15
+snowyrhi:hydroiso    7.145340e+00 5.400832e-01 31 13.2300746 2.728274e-14
+snowyrmid:hydroout   7.284113e+00 2.019920e-01 31 36.0613889 7.026895e-27
+snowyrlo:hydroout    7.739725e+00 2.518444e-01 31 30.7321721 8.763039e-25
+snowyrhi:hydroout    7.207067e+00 2.518444e-01 31 28.6171429 7.428650e-24
+snowyrmid:Volume_m3 -2.002727e-07 1.595404e-06 31 -0.1255310 9.009137e-01
+snowyrlo:Volume_m3   4.472392e-07 2.001624e-06 31  0.2234382 8.246604e-01
+snowyrhi:Volume_m3  -1.018416e-06 2.001624e-06 31 -0.5087946 6.144985e-01
+                                   Value   Std.Error DF    t-value      p-value
+snowyrmid:andesite            0.07028974 0.002670077 16 26.3249836 1.334339e-14
+snowyrlo:andesite             0.07636605 0.003582963 16 21.3136548 3.580443e-13
+snowyrhi:andesite             0.06569279 0.003582963 16 18.3347655 3.639633e-12
+snowyrmid:basalt              0.06848188 0.003571114 16 19.1766139 1.827860e-12
+snowyrlo:basalt               0.07585482 0.004792061 16 15.8292685 3.400449e-11
+snowyrhi:basalt               0.06716876 0.004792061 16 14.0166745 2.102709e-10
+snowyrmid:biotitegneiss       0.07838785 0.003622274 16 21.6405076 2.828354e-13
+snowyrlo:biotitegneiss        0.08651706 0.004788275 16 18.0685248 4.552775e-12
+snowyrhi:biotitegneiss        0.07591804 0.004788275 16 15.8549877 3.318135e-11
+snowyrmid:granodiorite        0.06531986 0.003044295 16 21.4564807 3.228567e-13
+snowyrlo:granodiorite         0.06844630 0.004001345 16 17.1058227 1.049634e-11
+snowyrhi:granodiorite         0.06254058 0.004001345 16 15.6298881 4.116813e-11
+snowyrmid:graywacke           0.07427641 0.002098840 16 35.3892614 1.266071e-16
+snowyrlo:graywacke            0.07953295 0.002791500 16 28.4911197 3.860598e-15
+snowyrhi:graywacke            0.07465764 0.002791500 16 26.7446354 1.041540e-14
+snowyrmid:quartzmonzodiorite  0.07122208 0.005081761 16 14.0152359 2.105919e-10
+snowyrlo:quartzmonzodiorite   0.06428764 0.006776930 16  9.4862489 5.692597e-08
+snowyrhi:quartzmonzodiorite   0.06828776 0.006776930 16 10.0765044 2.470229e-08
+snowyrmid:quartzmonzonite     0.06711297 0.005222400 16 12.8509827 7.578173e-10
+snowyrlo:quartzmonzonite      0.07205017 0.007007912 16 10.2812602 1.864793e-08
+snowyrhi:quartzmonzonite      0.06903676 0.007007912 16  9.8512588 3.382321e-08
+snowyrmid:sandstone           0.07488201 0.005024932 16 14.9020954 8.428870e-11
+snowyrlo:sandstone            0.07933571 0.006776930 16 11.7067339 2.942021e-09
+snowyrhi:sandstone            0.07737375 0.006776930 16 11.4172276 4.217601e-09
+snowyrmid:tholeiite           0.16076383 0.422315422 16  0.3806724 7.084530e-01
+snowyrlo:tholeiite           -0.24679120 0.563996211 16 -0.4375760 6.675429e-01
+snowyrhi:tholeiite           -0.14348255 0.563996211 16 -0.2544034 8.024247e-01
+[1] "####################################################################"
+[1] "############  ions  #################################"
+   variable effect group                         term      estimate    std.error df   statistic
+1        Ca  fixed fixed           snowyrmid:andesite  0.0628127333 0.0187645982 16  3.34740625
+2        Ca  fixed fixed            snowyrlo:andesite  0.0727637857 0.0193174128 16  3.76674591
+3        Ca  fixed fixed            snowyrhi:andesite  0.0589493924 0.0193174128 16  3.05161944
+4        Ca  fixed fixed             snowyrmid:basalt  0.0333523570 0.0251026816 16  1.32863721
+5        Ca  fixed fixed              snowyrlo:basalt  0.0351947581 0.0258362168 16  1.36222569
+6        Ca  fixed fixed              snowyrhi:basalt  0.0248235299 0.0258362168 16  0.96080360
+7        Ca  fixed fixed      snowyrmid:biotitegneiss  0.0392929861 0.0250828609 16  1.56652729
+8        Ca  fixed fixed       snowyrlo:biotitegneiss  0.0428385997 0.0258158038 16  1.65939437
+9        Ca  fixed fixed       snowyrhi:biotitegneiss  0.0368739279 0.0258158038 16  1.42834707
+10       Ca  fixed fixed       snowyrmid:granodiorite  0.0237617314 0.0209698666 16  1.13313698
+11       Ca  fixed fixed        snowyrlo:granodiorite  0.0259836535 0.0215731027 16  1.20444676
+12       Ca  fixed fixed        snowyrhi:granodiorite  0.0268968950 0.0215731027 16  1.24677917
+13       Ca  fixed fixed          snowyrmid:graywacke  0.0775358568 0.0146327627 16  5.29878454
+14       Ca  fixed fixed           snowyrlo:graywacke  0.0915517813 0.0150502654 16  6.08306756
+15       Ca  fixed fixed           snowyrhi:graywacke  0.0708249051 0.0150502654 16  4.70589077
+16       Ca  fixed fixed snowyrmid:quartzmonzodiorite  0.0161817354 0.0355085262 16  0.45571408
+17       Ca  fixed fixed  snowyrlo:quartzmonzodiorite  0.0189005669 0.0365375627 16  0.51729140
+18       Ca  fixed fixed  snowyrhi:quartzmonzodiorite  0.0170005105 0.0365375627 16  0.46528857
+19       Ca  fixed fixed    snowyrmid:quartzmonzonite  0.0107670959 0.0367016472 16  0.29336819
+20       Ca  fixed fixed     snowyrlo:quartzmonzonite  0.0129387131 0.0377828964 16  0.34244895
+21       Ca  fixed fixed     snowyrhi:quartzmonzonite  0.0112958286 0.0377828964 16  0.29896672
+22       Ca  fixed fixed          snowyrmid:sandstone  0.0876039636 0.0354786866 16  2.46919974
+23       Ca  fixed fixed           snowyrlo:sandstone  0.1294040353 0.0365375627 16  3.54167124
+24       Ca  fixed fixed           snowyrhi:sandstone  0.0546016384 0.0365375627 16  1.49439739
+25       Ca  fixed fixed          snowyrmid:tholeiite -1.0122897506 2.9526415870 16 -0.34284207
+26       Ca  fixed fixed           snowyrlo:tholeiite -2.4998802999 3.0407644015 16 -0.82212233
+27       Ca  fixed fixed           snowyrhi:tholeiite  2.6005956811 3.0407644015 16  0.85524406
+28        K  fixed fixed           snowyrmid:andesite  0.0012572558 0.0002008689 16  6.25908761
+29        K  fixed fixed            snowyrlo:andesite  0.0019987018 0.0002460638 16  8.12269721
+30        K  fixed fixed            snowyrhi:andesite  0.0014049273 0.0002460638 16  5.70960550
+31        K  fixed fixed             snowyrmid:basalt  0.0020141998 0.0002693648 16  7.47759168
+32        K  fixed fixed              snowyrlo:basalt  0.0019866889 0.0003290999 16  6.03673571
+33        K  fixed fixed              snowyrhi:basalt  0.0007837231 0.0003290999 16  2.38141442
+34        K  fixed fixed      snowyrmid:biotitegneiss  0.0018528798 0.0002721843 16  6.80744569
+35        K  fixed fixed       snowyrlo:biotitegneiss  0.0023966457 0.0003288398 16  7.28818521
+36        K  fixed fixed       snowyrhi:biotitegneiss  0.0018972546 0.0003288398 16  5.76953987
+37        K  fixed fixed       snowyrmid:granodiorite  0.0008472400 0.0002271562 16  3.72976817
+38        K  fixed fixed        snowyrlo:granodiorite  0.0009023077 0.0002747966 16  3.28354720
+39        K  fixed fixed        snowyrhi:granodiorite  0.0008109956 0.0002747966 16  2.95125751
+40        K  fixed fixed          snowyrmid:graywacke  0.0009836719 0.0001598753 16  6.15274566
+41        K  fixed fixed           snowyrlo:graywacke  0.0012204117 0.0001917092 16  6.36595300
+42        K  fixed fixed           snowyrhi:graywacke  0.0008570130 0.0001917092 16  4.47038036
+43        K  fixed fixed snowyrmid:quartzmonzodiorite  0.0006500195 0.0003939812 16  1.64987448
+44        K  fixed fixed  snowyrlo:quartzmonzodiorite  0.0007000210 0.0004654128 16  1.50408618
+45        K  fixed fixed  snowyrhi:quartzmonzodiorite  0.0014000420 0.0004654128 16  3.00817237
+46        K  fixed fixed    snowyrmid:quartzmonzonite  0.0017566019 0.0003937420 16  4.46130224
+47        K  fixed fixed     snowyrlo:quartzmonzonite  0.0021337090 0.0004812758 16  4.43344339
+48        K  fixed fixed     snowyrhi:quartzmonzonite  0.0018540800 0.0004812758 16  3.85242736
+49        K  fixed fixed          snowyrmid:sandstone  0.0014983619 0.0003826898 16  3.91534347
+50        K  fixed fixed           snowyrlo:sandstone  0.0025121226 0.0004654128 16  5.39762214
+51        K  fixed fixed           snowyrhi:sandstone  0.0010000300 0.0004654128 16  2.14869457
+52        K  fixed fixed          snowyrmid:tholeiite -0.0129088542 0.0318485792 16 -0.40531963
+53        K  fixed fixed           snowyrlo:tholeiite -0.0410973063 0.0387330367 16 -1.06104013
+54        K  fixed fixed           snowyrhi:tholeiite  0.0366083356 0.0387330367 16  0.94514499
+55       Mg  fixed fixed           snowyrmid:andesite  0.0042761394 0.0014398777 16  2.96979355
+56       Mg  fixed fixed            snowyrlo:andesite  0.0051344954 0.0015344463 16  3.34615519
+57       Mg  fixed fixed            snowyrhi:andesite  0.0043815697 0.0015344463 16  2.85547288
+58       Mg  fixed fixed             snowyrmid:basalt  0.0036373714 0.0019267846 16  1.88779350
+59       Mg  fixed fixed              snowyrlo:basalt  0.0039236033 0.0020522565 16  1.91184835
+60       Mg  fixed fixed              snowyrhi:basalt  0.0024324681 0.0020522565 16  1.18526513
+61       Mg  fixed fixed      snowyrmid:biotitegneiss  0.0041924940 0.0019335845 16  2.16824962
+62       Mg  fixed fixed       snowyrlo:biotitegneiss  0.0049029927 0.0020506351 16  2.39096306
+63       Mg  fixed fixed       snowyrhi:biotitegneiss  0.0039634504 0.0020506351 16  1.93279166
+64       Mg  fixed fixed       snowyrmid:granodiorite  0.0019442882 0.0016124729 16  1.20578039
+65       Mg  fixed fixed        snowyrlo:granodiorite  0.0021364642 0.0017136232 16  1.24675257
+66       Mg  fixed fixed        snowyrhi:granodiorite  0.0020825737 0.0017136232 16  1.21530429
+67       Mg  fixed fixed          snowyrmid:graywacke  0.0043135127 0.0011262698 16  3.82991075
+68       Mg  fixed fixed           snowyrlo:graywacke  0.0050478299 0.0011954926 16  4.22238494
+69       Mg  fixed fixed           snowyrhi:graywacke  0.0037832519 0.0011954926 16  3.16459669
+70       Mg  fixed fixed snowyrmid:quartzmonzodiorite  0.0012000360 0.0027506300 16  0.43627678
+71       Mg  fixed fixed  snowyrlo:quartzmonzodiorite  0.0014000420 0.0029023000 16  0.48239052
+72       Mg  fixed fixed  snowyrhi:quartzmonzodiorite  0.0012000360 0.0029023000 16  0.41347758
+73       Mg  fixed fixed    snowyrmid:quartzmonzonite  0.0018550523 0.0028172952 16  0.65845152
+74       Mg  fixed fixed     snowyrlo:quartzmonzonite  0.0022733911 0.0030012210 16  0.75748874
+75       Mg  fixed fixed     snowyrhi:quartzmonzonite  0.0019668208 0.0030012210 16  0.65534022
+76       Mg  fixed fixed          snowyrmid:sandstone  0.0086153642 0.0027192810 16  3.16825076
+77       Mg  fixed fixed           snowyrlo:sandstone  0.0119097688 0.0029023000 16  4.10356228
+78       Mg  fixed fixed           snowyrhi:sandstone  0.0049001471 0.0029023000 16  1.68836684
+79       Mg  fixed fixed          snowyrmid:tholeiite -0.2857033070 0.2264054534 16 -1.26191001
+80       Mg  fixed fixed           snowyrlo:tholeiite -0.4277437038 0.2415380198 16 -1.77091666
+81       Mg  fixed fixed           snowyrhi:tholeiite  0.0167695720 0.2415380198 16  0.06942829
+        p.value
+1  4.089594e-03
+2  1.687061e-03
+3  7.612935e-03
+4  2.026069e-01
+5  1.919972e-01
+6  3.509470e-01
+7  1.367873e-01
+8  1.165062e-01
+9  1.724220e-01
+10 2.738516e-01
+11 2.459321e-01
+12 2.304225e-01
+13 7.200933e-05
+14 1.583839e-05
+15 2.379603e-04
+16 6.547195e-01
+17 6.120301e-01
+18 6.479949e-01
+19 7.730117e-01
+20 7.364704e-01
+21 7.688137e-01
+22 2.518515e-02
+23 2.713842e-03
+24 1.545315e-01
+25 7.361802e-01
+26 4.230902e-01
+27 4.050414e-01
+28 1.140273e-05
+29 4.549187e-07
+30 3.224846e-05
+31 1.316746e-06
+32 1.728135e-05
+33 3.000780e-02
+34 4.209703e-06
+35 1.817631e-06
+36 2.873469e-05
+37 1.824030e-03
+38 4.678659e-03
+39 9.385927e-03
+40 1.389961e-05
+41 9.359836e-06
+42 3.865170e-04
+43 1.184592e-01
+44 1.520417e-01
+45 8.336142e-03
+46 3.938517e-04
+47 4.172590e-04
+48 1.408100e-03
+49 1.233264e-03
+50 5.923800e-05
+51 4.731089e-02
+52 6.906106e-01
+53 3.044261e-01
+54 3.586403e-01
+55 9.030592e-03
+56 4.100396e-03
+57 1.145053e-02
+58 7.732735e-02
+59 7.397405e-02
+60 2.532188e-01
+61 4.556094e-02
+62 2.944383e-02
+63 7.116114e-02
+64 2.454315e-01
+65 2.304320e-01
+66 2.418795e-01
+67 1.476568e-03
+68 6.474792e-04
+69 6.008284e-03
+70 6.684656e-01
+71 6.360616e-01
+72 6.847456e-01
+73 5.196113e-01
+74 4.597684e-01
+75 5.215605e-01
+76 5.962369e-03
+77 8.303294e-04
+78 1.107322e-01
+79 2.250673e-01
+80 9.561994e-02
+81 9.455090e-01
+[1] "####################################################################"

@@ -1,0 +1,373 @@
+---
+title: "Zooplankton CCA"
+author: "Matt Brousil"
+date: "August 21, 2019"
+output: html_document
+---
+
+```{r echo = FALSE, results = FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(readxl)
+library(visdat)
+library(vegan)
+```
+
+Load data
+```{r}
+bigjoin <- readRDS(file = "../data/analysis_outputs/bigjoin.rds")
+zoop <- read_excel("../data/NCCN_Zoops_Combined_For_FCA_May_2019.xlsx")
+```
+
+Prep data
+```{r}
+zoop[1487, "Taxa"] <- "ROT"
+zoop[1487, "Taxonid"] <- 5
+
+# Name matching table
+match_sites <- readRDS(file = file.path("..",
+                                        "data",
+                                        "name_site_matches.rds"))
+
+# Crosswalk common names for sites to site_codes
+zoop <- left_join(x = zoop, y = match_sites,
+                               by = c("Lake" = "old_name"))
+```
+
+Grab yearly environmental data...quick check
+```{r}
+bigjoin %>%
+  filter(variable %in% c("secchi_value_m", "AirTemp", "BotTemp",
+                         "MidTemp", "SurfTemp", "DO_top2m")) %>%
+  select(park_code, site_code, event_year, start_date, ice_out_doy) %>%
+  unique() %>%
+  count(park_code, site_code, event_year, start_date) %>%
+  arrange(desc(n))
+
+yearly_bigjoin <- bigjoin %>%
+  filter(variable %in% c("secchi_value_m", "AirTemp", "BotTemp",
+                         "MidTemp", "SurfTemp", "DO_top2m")) %>%
+  select(park_code, site_code, event_year, variable, value,
+         ice_out_doy) %>%
+  unique()
+
+head(yearly_bigjoin)  
+head(zoop)
+```
+
+There's 114 rows in the yearly_bigjoin that don't match up with zoop data
+```{r}
+zoop_env <- inner_join(x = zoop, y = yearly_bigjoin,
+          by = c("site_code",
+                 "Year" = "event_year")) %>%
+  spread(key = variable, value = value)
+```
+
+Double check that there's not multiple measures/year (Spoiler: There are.)
+```{r}
+zoop_env %>%
+  count(park_code, site_code, Year, GenSp) %>%
+  arrange(desc(n))
+```
+
+Deadwood has multiple samples per zoop species per year? I'm not clear
+as to why this is. Perhaps I'm missing something. Going to sum them up
+for now.
+```{r}
+zoop_env %>%
+  filter(park_code == "MORA", site_code == "LW32", Year == "2018")
+
+zoop_sum <- zoop %>%
+  group_by(Park, Year, Lake, site_code, Code, Taxa, Taxonid, GenSp) %>%
+  summarise(density = sum(Density))
+  
+zoop_env_sum <- inner_join(x = zoop_sum, y = yearly_bigjoin,
+                       by = c("site_code",
+                              "Year" = "event_year")) %>%
+  spread(key = variable, value = value)
+
+# Looks good:
+zoop_env_sum %>%
+  count(park_code, site_code, Year, GenSp) %>%
+  arrange(desc(n))
+
+# Variables in the dataset currently:
+names(zoop_env_sum)
+
+# Let's pick a few predictors of interest:
+zoop_env_select <- zoop_env_sum %>%
+  select(Park:park_code, # the zoop + basic info,
+         secchi_value_m, AirTemp, BotTemp,
+         MidTemp, SurfTemp, DO_top2m)
+
+# Now spread out the zoops to create cols for each taxa
+zoop_env_sp <- spread(data = zoop_env_select,
+                      key = GenSp, value = density)
+```
+
+Look at the dataset
+```{r fig.width = 9, fig.align = "center"}
+vis_dat(zoop_env_sp)
+
+```
+Not sure this is the way to go...Looking at the absence of data in this df
+it's clear that the species are fairly unique to specific places? Would still
+fill in the NAs with 0s, but still there's a lot of zero data. Let's try
+taxa instead. Going to backup a couple steps...
+
+```{r}
+zoop_sum_taxa <- zoop %>%
+  # Dropping Code b/c it appears redundant with Taxa
+  group_by(Park, Year, Lake, site_code, Taxa, Taxonid) %>%
+  summarise(density = sum(Density))
+
+zoop_env_sum_taxa <- inner_join(x = zoop_sum_taxa, y = yearly_bigjoin,
+                           by = c("site_code",
+                                  "Year" = "event_year")) %>%
+  spread(key = variable, value = value)
+
+# Looks good:
+zoop_env_sum_taxa %>%
+  count(park_code, site_code, Year, Taxa) %>%
+  arrange(desc(n))
+
+# Variables in the dataset currently:
+names(zoop_env_sum_taxa)
+
+# Let's pick a few predictors of interest:
+zoop_env_taxa_select <- zoop_env_sum_taxa %>%
+  select(Park:park_code, # the zoop + basic info,
+         AirTemp, BotTemp, DO_top2m, MidTemp, secchi_value_m,
+         SurfTemp,
+         -Taxonid)
+
+# Now spread out the zoops to create cols for each taxa
+zoop_env_taxa_spread <- zoop_env_taxa_select %>%
+  filter(!is.na(Taxa)) %>%
+  spread(key = Taxa, value = density)
+```
+
+```{r fig.width = 9, fig.align = "center"}
+vis_dat(zoop_env_taxa_spread)
+```
+
+CCA will only run if there are no NA values...I don't think it makes sense
+to turn NA values for the env data into 0s. So, are there rows where all
+predictors aren't NA?
+```{r}
+zoop_env_taxa_select %>%
+  filter_at(vars(AirTemp:SurfTemp), all_vars(!is.na(.))) %>%
+  # What space and time spread to they cover?
+  count(Park, Lake, Year) %>%
+  ggplot() +
+  geom_point(aes(x = Year, y = Lake)) +
+  facet_grid(rows = vars(Park))
+```
+
+**How to account (at all?) account for the fact that not all lakes have identical timelines of zoop data, and some that do will probably have gaps in
+their environmental data?**
+
+```{r}
+# Save a new version of the dataset that has only data with no predictor NAs
+zoop_env_taxa_no_na <- zoop_env_taxa_select %>%
+  filter_at(vars(AirTemp:SurfTemp), all_vars(!is.na(.)))
+
+zoop_env_taxa_no_na_spread <- zoop_env_taxa_no_na %>%
+    spread(key = Taxa, value = density)
+
+cca_taxa_data <- zoop_env_taxa_no_na_spread %>%
+  data.frame() %>%
+  select(CLAD:ROT) %>%
+  # Replace NAs with 0s
+  map_df(.x = .,  ~ replace_na(data = ., replace = 0))
+
+cca_env_data <- zoop_env_taxa_no_na_spread %>%
+  data.frame() %>%
+  select(AirTemp:SurfTemp)
+
+zoop_cca <- cca(X = as.matrix(cca_taxa_data),
+                Y = as.matrix(cca_env_data))
+```
+
+The plot looks suspect to me:
+```{r}
+ordiplot(zoop_cca)
+```
+
+Notably, an NMDS will now **sometimes** run with these reduced data...Though I
+don't think that they've been reduced in a way that's justifiable for NMDS? It
+runs also if we use 3 dimensions instead of 2.
+```{r results = FALSE}
+zoop_nmds_alt <- metaMDS(comm = cca_taxa_data, try = 100)
+```
+
+```{r}
+zoop_nmds_alt
+```
+
+```{r results = FALSE}
+zoop_nmds_3 <- metaMDS(cca_taxa_data, k = 3)
+```
+
+```{r}
+zoop_nmds_3
+
+ordiplot(zoop_nmds_3)
+```
+
+Per MM, Distance-based redundancy analysis. Using example code from:
+[link](https://sites.ualberta.ca/~ahamann/teaching/renr690/Lab9b.pdf)
+```{r}
+dbrda <- capscale(formula = cca_taxa_data ~ DO_top2m + SurfTemp + secchi_value_m, data = cca_env_data,
+                  distance = "bray")
+
+ordiplot(dbrda)
+anova(dbrda)
+anova(dbrda, by = "axis", perm.max = 500)
+anova(dbrda, by = "terms", permu = 200)
+```
+
+How to evaluate?
+
+Take a look at COPE:ROT
+CLAD, COPE, ROT are 3 major groups
+```{r}
+
+```
+
+
+## Look at environmental variables ~ watershed characteristics now.
+```{r}
+physio <- read_excel(path = "../data/analysis_outputs/study-site-tables.xlsx",
+                     sheet = 1)
+
+physio <- left_join(x = physio, y = match_sites,
+                               by = c("Lake" = "old_name"))
+
+```
+
+```{r}
+# Grab yearly data...quick check
+bigjoin %>%
+  filter(variable %in% c("AirTemp", "BotTemp", "MidTemp", "SurfTemp",
+                         "Chlorophyll", "ice_in_doy", "ice_out_doy")) %>%
+  select(park_code, site_code, event_year, start_date, ice_out_doy) %>%
+  unique() %>%
+  count(park_code, site_code, event_year, start_date) %>%
+  arrange(desc(n))
+
+yearly_bigjoin_wshd <- bigjoin %>%
+  filter(variable %in% c("AirTemp", "BotTemp", "MidTemp", "SurfTemp",
+                         "Chlorophyll", "ice_in_doy", "ice_out_doy",
+                         "pH_top2m", "pH_below2m")) %>%
+  select(park_code, site_code, event_year, variable, value) %>%
+  unique()
+
+head(yearly_bigjoin_wshd)
+
+env_phys_wshd <- left_join(x = yearly_bigjoin_wshd,
+                           y = physio,
+                           by = c("site_code")) %>%
+  spread(key = variable, value = value)
+```
+
+The ice_in/ice_out data are spotty as seen previously
+```{r}
+vis_dat(env_phys_wshd)
+```
+
+How many rows if we remove NAs and the ice variables?
+```{r}
+env_phys_wshd %>%
+  select(-contains("ice")) %>%
+  filter_all(all_vars(!is.na(.))) %>%
+  nrow()
+```
+135 rows
+
+How many rows if we remove NAs but keep ice variables?
+```{r}
+env_phys_wshd %>% 
+  filter_all(all_vars(!is.na(.))) %>%
+  nrow()
+```
+99 rows
+
+Go forth with the ice data removed
+```{r}
+env_phys_wshd <- env_phys_wshd %>%
+  select(-contains("ice")) %>%
+  filter_all(all_vars(!is.na(.)))
+```
+
+Split into the two components for following analyses
+```{r}
+cca_env_wshd <- env_phys_wshd %>%
+  select(AirTemp:SurfTemp)
+
+cca_wsh_vars <- env_phys_wshd %>%
+  select(Elevation_m, Aspect, Watershed_area_ha,
+         Watershed_area_to_lake_area_ratio, Surface_area_ha, Volume_m3,
+         Depth_mean_m)
+```
+
+
+```{r}
+watershed_cca <- cca(formula = cca_env_wshd ~ Elevation_m + Aspect +
+                       Watershed_area_ha + Watershed_area_to_lake_area_ratio +
+                       Surface_area_ha + Volume_m3 + Depth_mean_m,
+                     data = cca_wsh_vars)
+
+ordiplot(watershed_cca)
+
+anova.cca(watershed_cca)
+anova.cca(watershed_cca, by = "axis", perm.max = 500)
+anova.cca(watershed_cca, by = "terms", permu = 200)
+```
+
+Reduced CCA
+```{r}
+watershed_cca_2 <- cca(formula = cca_env_wshd ~ Elevation_m + Aspect +
+                       Watershed_area_to_lake_area_ratio + Volume_m3,
+                     data = cca_wsh_vars)
+
+ordiplot(watershed_cca_2)
+
+anova.cca(watershed_cca_2)
+anova.cca(watershed_cca_2, by = "axis", perm.max = 500)
+anova.cca(watershed_cca_2, by = "terms", permu = 200)
+```
+
+Is it an issue including a categorical variable here? Can't specify Bray distance
+while doing so...
+```{r}
+dbrda_wshd <- capscale(formula = cca_env_wshd ~ Elevation_m + Aspect +
+                       Watershed_area_ha + Watershed_area_to_lake_area_ratio +
+                       Surface_area_ha + Volume_m3 + Depth_mean_m,
+                     data = cca_wsh_vars)
+
+ordiplot(dbrda_wshd)
+anova(dbrda_wshd)
+anova(dbrda_wshd, by = "axis", perm.max = 500)
+anova(dbrda_wshd, by = "terms", permu = 200)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

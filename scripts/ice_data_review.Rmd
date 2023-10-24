@@ -1,0 +1,283 @@
+---
+title: "Ice Data Review"
+author: "Matt Brousil"
+date: "2020-06-09"
+output: html_document
+---
+
+```{r, message=FALSE, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(kableExtra)
+```
+
+
+### Background
+In this document I review the history and status of the ice data we received
+from Bill Baccus. 
+
+Bill sent us two spreadsheets on 2019-05-03:  
+
++ IceDurationSummary.xlsx  
++ MilkLake_IceCover_2005to2018.xlsx  
+
+The MilkLake_IceCover_2005to2018.xlsx file is an example of the daily data that
+NPS uses for ice in/ice out calculations. IceDurationSummary.xlsx included the
+determined dates for all lakes and years. There were some instances where Bill
+felt that compromising issues, and Bill left those dates out.
+
+Bill's notes on missing data:
+*"There were some periods (especially at NOCA and MORA) where surface buoys were too low to get true surface temps so we could not use the NPS algorithm (so those years are missing or left blank). Missing data is also the result of failure or damage to instruments. In some cases I have included a note in the cell explaining the issue. A couple of issues I noted at OLYM. Heather Lake is small with a very large snow covered watershed and often has avalanched snow piled in which floats around like a big ice cube for weeks.  This condition is known (through camera images) to prolong the amount of time it takes for the surface to warm (it is like a big ice bath due to the amount of melt water running into a very small basin). The result is that ice-out dates are known to be inaccurate. Another issue I was not sure how to deal with is Milk Lake in 2008. In this year, the lake never became truly ice free, only broken up. We also never had inverse stratification, so the ice duration was essentially two year. I was not certain how to treat that in the spreadsheet."*
+
+For ice-in data, NPS uses their own Excel-based method to determine ice-in. For 
+ice-out, they use Pierson's inverse stratification method.
+
+On 2019-07-11, Rebecca Lofgren sent updated ice-off data ("Ice_Loss_update_071019.xlsx").
+This update contained additional ice-off dates using the inverse stratification
+method for MORA and NOCA. Ice-on dates aren't included because in the early years
+surface loggers at MORA and NOCA were placed up to a meter below the lake surface,
+rendering the NPS method inaccurate.
+
+**Additionally**, Rebecca mentioned that she and Bill had discussed other options
+for estimating duration or ice-on with subsurface buoy placement based on relationships
+with other lakes, but we never followed up on this.
+
+### Load and clean data
+```{r}
+ice_data <- read_excel(path = "../data/ice_spreadsheets_from_WB_2019May3/IceDurationSummary.xlsx")
+ice_update <- read_excel(path = "../data/ice_spreadsheets_from_WB_2019May3/Ice_Loss_update_071019.xlsx")
+
+match_sites <- readRDS(file = "../data/name_site_matches.rds")
+```
+
+```{r, warning=FALSE}
+
+ice_data_cleaned <- ice_data %>%
+  clean_names() %>%
+  mutate(onset_raw = onset,
+         loss_raw = loss,
+         onset_date = excel_numeric_to_date(as.numeric(onset)),
+         loss_date = excel_numeric_to_date(as.numeric(loss)),
+         onset_record = case_when(is.na(onset_date) ~ "NA",
+                                  !is.na(onset_date) ~ "PRESENT"),
+         loss_record = case_when(is.na(loss_date) ~ "NA",
+                                 !is.na(loss_date) ~ "PRESENT")) %>%
+  left_join(x = ., y = match_sites, by = c("lake" = "old_name")) %>%
+  select(lake, site_code, everything(), -onset, -loss)
+
+ice_update_cleaned <- ice_update %>%
+  clean_names() %>%
+  mutate(onset_raw = onset,
+         loss_raw = loss,
+         onset_date = excel_numeric_to_date(as.numeric(onset)),
+         loss_date = excel_numeric_to_date(as.numeric(loss)),
+         onset_record = case_when(is.na(onset_date) ~ "NA",
+                                  !is.na(onset_date) ~ "PRESENT"),
+         loss_record = case_when(is.na(loss_date) ~ "NA",
+                                 !is.na(loss_date) ~ "PRESENT")) %>%
+  left_join(x = ., y = match_sites, by = c("lake" = "old_name")) %>%
+  select(lake, site_code, everything(), -onset, -loss) %>%
+  filter(!is.na(water_year))
+
+```
+
+### Plot data presence/absence
+```{r, include=FALSE}
+
+ice_data_viz <- ggplot(data = ice_data_cleaned) +
+  geom_point(aes(x = site_code, y = water_year, fill = onset_record),
+             shape = 21, size = 5, position = position_nudge(x = -0.2)) +
+  geom_text(aes(x = site_code, y = water_year, label = "O"), position = position_nudge(x = -0.2), size = 2) +
+  geom_point(aes(x = site_code, y = water_year, fill = loss_record),
+             shape = 21, size = 5, position = position_nudge(x = 0.2)) +
+  geom_text(aes(x = site_code, y = water_year, label = "L"), position = position_nudge(x = 0.2), size = 2) +
+  scale_y_continuous(trans = "reverse", breaks = c(seq(from = 2005, to = 2020, by = 1))) +
+  facet_wrap(. ~ location, scale = "free_x") +
+  theme(axis.text.x = element_text(angle = 280, hjust = 0.5), legend.position = "bottom") +
+  ggtitle("Onset and Loss data availability, original dataset")
+
+ice_update_viz <- ggplot(data = ice_update_cleaned) +
+  geom_point(aes(x = site_code, y = water_year, fill = onset_record),
+             shape = 21, size = 5, position = position_nudge(x = -0.2)) +
+  geom_text(aes(x = site_code, y = water_year, label = "O"), position = position_nudge(x = -0.2), size = 2) +
+  geom_point(aes(x = site_code, y = water_year, fill = loss_record),
+             shape = 21, size = 5, position = position_nudge(x = 0.2)) +
+  geom_text(aes(x = site_code, y = water_year, label = "L"), position = position_nudge(x = 0.2), size = 2) +
+  scale_y_continuous(trans = "reverse", breaks = c(seq(from = 2005, to = 2020, by = 1))) +
+  facet_wrap(. ~ location, scale = "free_x") +
+  theme(axis.text.x = element_text(angle = 280, hjust = 0.5), legend.position = "bottom") +
+  ggtitle("Onset and Loss data availability, updated dataset")
+
+```
+
+```{r, fig.width=10.5}
+ice_data_viz
+ice_update_viz
+```
+
+
+### Combine both versions of dataset, plot final presence/absence
+```{r}
+
+combined_ice_data <- full_join(x = ice_data_cleaned, y = ice_update_cleaned,
+                               by = c("site_code", "lake", "location", "water_year"),
+                               suffix = c("_orig", "_update")) %>%
+  mutate(onset = onset_date_orig,
+         loss = case_when(
+           loss_date_orig == loss_date_update ~ loss_date_orig,
+           is.na(loss_date_orig) & !is.na(loss_date_update) ~ loss_date_update,
+           !is.na(loss_date_orig) & is.na(loss_date_update) ~ loss_date_orig),
+         ice_out_doy = yday(x = loss),
+         ice_in_doy = yday(x = onset),
+         onset_record = case_when(is.na(onset) ~ "NA",
+                                  !is.na(onset) ~ "PRESENT"),
+         loss_record = case_when(is.na(loss) ~ "NA",
+                                 !is.na(loss) ~ "PRESENT")) %>%
+  select(-c(onset_raw_orig, onset_raw_update, loss_raw_orig, loss_raw_update))
+
+```
+
+```{r, include=FALSE}
+combined_data_viz <- ggplot(data = combined_ice_data) +
+  geom_point(aes(x = site_code, y = water_year, fill = onset_record),
+             shape = 21, size = 5, position = position_nudge(x = -0.2)) +
+  geom_text(aes(x = site_code, y = water_year, label = "O"), position = position_nudge(x = -0.2), size = 2) +
+  geom_point(aes(x = site_code, y = water_year, fill = loss_record),
+             shape = 21, size = 5, position = position_nudge(x = 0.2)) +
+  geom_text(aes(x = site_code, y = water_year, label = "L"), position = position_nudge(x = 0.2), size = 2) +
+  scale_y_continuous(trans = "reverse", breaks = c(seq(from = 2005, to = 2020, by = 1))) +
+  facet_wrap(. ~ location, scale = "free_x") +
+  scale_fill_discrete(name = "") +
+  theme(axis.text.x = element_text(angle = 280, hjust = 0.5), legend.position = "bottom") +
+  ggtitle("Onset and Loss data availability, combined dataset")
+```
+
+```{r, fig.width=10.5}
+combined_data_viz
+```
+
+
+### Review bigjoin
+```{r}
+bigjoin <- readRDS(file = "../data/analysis_outputs/bigjoin.rds")
+```
+
+Here I count the number of times that each unique row of ice measurements is repeated 
+within bigjoin. Different lakes have different numbers of repeated rows. Not sure
+whether this is something to worry about, but definitely something to keep in mind.
+```{r, include=FALSE, results='markup'}
+
+bigjoin_high_counts <- bigjoin %>%
+  count(park_code, site_code, event_year, ice_out_doy,
+        ice_duration_days, ice_free_days) %>%
+  arrange(desc(n)) %>%
+  head(n = 5) %>%
+  kable() %>%
+  kable_styling
+
+bigjoin_low_counts <- bigjoin %>%
+  count(park_code, site_code, event_year, ice_out_doy,
+        ice_duration_days, ice_free_days) %>%
+  arrange(desc(n)) %>%
+  tail(n = 5) %>%
+  kable() %>%
+  kable_styling()
+
+```
+
+```{r}
+bigjoin_high_counts
+bigjoin_low_counts
+```
+
+I'm not sure how the data are being used for modeling, so it might be up to SP
+to determine whether or not he's using the data in a way that is compatible with
+having multiple rows of each measurement...Would be worth re-running models with
+reduced datasets (i.e., build them custom to the analysis instead of using bigjoin)
+to make sure that those results match any bigjoin-based models.
+
+
+Number of unique ice_out_doy's in bigjoin dedicated column
+```{r}
+bigjoin %>%
+  select(park_code, site_code, event_year, ice_out_doy) %>%
+  unique() %>%
+  nrow()
+
+```
+
+Number of unique ice_out_doy's in raw data
+```{r}
+combined_ice_data %>%
+  select(location, site_code, water_year, ice_out_doy) %>%
+  unique() %>%
+  nrow()
+
+```
+
+All of the unique rows in bigjoin that aren't in the "raw" ice dataset are NAs.
+```{r}
+anti_join(x = bigjoin %>%
+            select(park_code, site_code, event_year, ice_out_doy) %>%
+            unique(),
+          y = combined_ice_data %>%
+            select(location, site_code, water_year, ice_out_doy) %>%
+            unique(),
+          by = c("park_code" = "location", "site_code", "event_year" = "water_year")) %>%
+  pull(ice_out_doy) %>%
+  unique()
+```
+
+It looks like the same thing is going on with the variable column of bigjoin
+```{r}
+bigjoin %>%
+  select(park_code, site_code, event_year, variable, value) %>%
+  filter(variable == "ice_out_doy") %>%
+  unique() %>%
+  nrow()
+```
+
+
+Let's confirm that the ice_out_doy matches what we might calculate using R:
+```{r}
+check_doy_out <- combined_ice_data %>%
+  select(site_code, water_year, loss, ice_out_doy) %>%
+  unique() %>%
+  mutate(check_doy_out = yday(loss))
+
+all_equal(check_doy_out$ice_out_doy, check_doy_out$check_doy_out)
+```
+
+And do those date numbers match bigjoin?
+```{r}
+bigjoin_combined_compare <- inner_join(x = bigjoin %>%
+                                         select(park_code, site_code, event_year,
+                                                ice_out_doy) %>%
+                                         unique(),
+                                       y = check_doy_out,
+                                       by = c("site_code",
+                                              "event_year" = "water_year"))
+
+# Get difference between two versions of ice_out_doy
+diff_doy <- bigjoin_combined_compare %>%
+  mutate(doy_diffs = ice_out_doy.x - check_doy_out)
+
+# Which values show up for our diffs? 0 is good; NA should be inspected
+diff_doy$doy_diffs %>% unique()
+```
+
+Do any of the NAs have anything weird going on?
+```{r}
+diff_doy %>% filter(is.na(doy_diffs))
+```
+
+It appears that there were two instances where the method I've used in this document
+don't match with the data in bigjoin:
+
+- LH14 in 2013 has an ice_out_doy of 190 in bigjoin, but NA here  
+  + 190 should be correct based on raw data
+- LH15 in 2010 has an NA ice_out_doy in bigjoin, but 183 here. **(As of 2020-06-09 should be fixed)**
+  + 183 was indicated in the Ice_Loss_update_071019.xlsx file as correct. Looks like
+  the harmonize_ice_data.R script runs into an NA for this entry due to date formatting.

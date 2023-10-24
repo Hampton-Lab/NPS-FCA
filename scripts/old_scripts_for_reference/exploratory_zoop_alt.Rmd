@@ -1,0 +1,61 @@
+---
+title: "Alternative zooplankton exploration"
+author: "Matt Brousil"
+date: "August 21, 2019"
+output: html_document
+---
+```{r, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(visdat)
+library(vegan)
+library(janitor)
+```
+
+### Load up the data
+
+```{r}
+zoop <- read_excel("../data/NCCN_Zoops_Combined_For_FCA_May_2019.xlsx")
+```
+
+There's a row where "Collotheca pelagica" is pasted across three columns
+It is treated as an NA and Taxonid is retained as numeric
+Admittedly I don't have a full grasp of the last three cols, but I'll make
+the record match with the others of that species nearby:
+
+```{r}
+zoop[1487, "Taxa"] <- "ROT"
+zoop[1487, "Taxonid"] <- 5
+```
+
+### Quick view of the whole dataset:
+```{r}
+# Data types of the data frame
+vis_dat(zoop)
+# Missing data
+vis_miss(zoop)
+```
+
+Three additional records where Taxa and Taxonid aren't complete. They make sense, but should mosquito pupae be retained?
+```{r}
+zoop %>% filter(is.na(Taxa) | is.na(Taxonid))
+```
+
+```{r}
+taxa_data <- zoop %>%
+     filter(!is.na(Taxa)) %>%
+ group_by(Year, Park, Lake, Taxa) %>%
+   summarise(taxa_sum = sum(Density)) %>%
+ spread(key = Taxa, value = taxa_sum, fill = 0) %>%
+     data.frame() %>%
+     select(CLAD:ROT)
+
+head(taxa_data)
+```
+
+NMDS:
+```{r}
+taxa_nmds <- metaMDS(comm = taxa_data, k = 2, try = 20)
+
+ordiplot(ord = taxa_nmds, display = "sites")
+```

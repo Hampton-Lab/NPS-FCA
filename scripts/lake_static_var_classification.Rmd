@@ -1,0 +1,161 @@
+---
+title: "Static Lake Variable Classification"
+author: "Matt Brousil"
+date: "7/8/2020"
+output: html_document
+---
+
+## A script that uses PCA and regression tree approaches to classify lakes
+## Messed up by Hampton on 10 July 2020
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(readxl)
+library(factoextra)
+library(viridis)
+library(vegan)
+library(rpart)
+library(partykit)
+library(rpart.plot)
+```
+
+```{r}
+physio <- read_excel(
+  path = file.path("..",
+                   "data",
+                   "analysis_outputs",
+                   "study-site-tables.xlsx"))
+
+# Grab bigjoin for land cover
+bigjoin <- readRDS(file = "../data/analysis_outputs/bigjoin.rds")
+
+land_cover <- bigjoin %>% select(park_code, site_code, forest:snowice) %>%
+  unique()
+
+# Name matching table
+match_sites <- readRDS(file = file.path("..",
+                                        "data",
+                                        "name_site_matches.rds"))
+
+# Select continuous variables
+physio_subset <- physio %>%
+  select(Park_code, Lake, Elevation_m, Watershed_area_to_lake_area_ratio,
+         Surface_area_ha, Depth_mean_m, Volume_m3,
+         Aspect, BlueLineOutlet) %>%
+  left_join(x = ., y = match_sites,
+            by = c("Lake" = "old_name")) %>%
+  select(Park_code, site_code, everything(), -Lake) %>%
+  full_join(x = ., y = bigjoin, by = c("Park_code" = "park_code",
+                                          "site_code"))
+
+```
+
+Scale a numeric subset of the data
+```{r}
+physio_scale <- physio_subset %>%
+  select(Elevation_m:snowice) %>%
+  mutate_if(.predicate = is.numeric, .funs = ~ scale(.)) %>%
+  cbind(Park_code = physio_subset$Park_code, .)
+
+row.names(physio_scale) <- paste0(physio$Park_code, "_", physio$site_code)
+```
+
+
+### Run PCA
+```{r}
+physio_pca <- rda(select_if(physio_scale, .predicate = is.numeric))
+```
+
+#### PCA Results:
+```{r}
+physio_pca
+```
+
+```{r, echo=FALSE}
+biplot(physio_pca,
+       display = c("sites", 
+                   "species"),
+       type = c("text",
+                "points"))
+```
+
+Add hulls (currently for park)  
+```{r}
+# https://rpubs.com/brouwern/veganpca#:~:text=PCA%20(Principal%20Components%20Analysis)%20is,is%20also%20developing%20biplot%20tools).
+biplot(physio_pca,
+       display = c("sites", 
+                   "species"),
+       type = c("text",
+                "points"))
+ordihull(physio_pca,
+         group = physio_scale$Park_code)
+```
+
+
+### Run PCA outside of vegan for another plotting option
+```{r}
+physio_pca <- prcomp(x = select_if(physio_scale,
+                                   .predicate = is.numeric), scale. = FALSE)
+```
+
+### PCA Results:
+```{r}
+physio_pca
+```
+
+Scree plot
+```{r}
+fviz_eig(physio_pca)
+```
+
+Bioplot & variable contribution
+```{r, fig.show="hold", out.width="50%"}
+
+
+fviz_pca_biplot(X = physio_pca, col.var = viridis(n = 5)[2],
+                col.ind = plasma(n = 5)[4], ggtheme = theme_bw())
+
+
+fviz_pca_var(X = physio_pca, col.var = "contrib", repel = TRUE,
+             gradient.cols = viridis(n = 5, begin = 0, end = 1),
+             ggtheme = theme_bw())
+```
+
+
+### Regression tree
+
+```{r}
+mean_chl <- bigjoin %>%
+  select(park_code, site_code, event_year, variable, value) %>%
+  filter(variable == "Chlorophyll") %>%
+  spread(key = variable, value = value) %>%
+  group_by(park_code, site_code) %>%
+  summarise(mean_chl = mean(Chlorophyll))
+```
+
+
+```{r}
+reg_tree_data <- physio_subset %>%
+  full_join(x = ., y = mean_chl, by = c("Park_code" = "park_code",
+                                        "site_code"))
+```
+
+Specify the tree, setting minimum number of obs per node before a split to be 10
+```{r}
+tree <- rpart(formula = mean_chl ~ Elevation_m.x +  Watershed_area_to_lake_area_ratio.x + Depth_mean_m.x + forest + barren +
+               solar_jas + Volume_m3.x + SWE_May + flush_index_noSWE,
+              data = reg_tree_data, minsplit = 10)
+
+plot(x = as.party(tree),
+            main = "Chlorophyll",
+            terminal_panel = node_boxplot)
+
+plotcp(tree)
+ptree <- prune(tree, cp= tree$cptable[which.min(tree$cptable[,"xerror"]),"CP"])
+summary(ptree)
+rpart.plot(ptree, main="Average Chlorophyll")
+
+```
+
+
+Based on the cross-validation plot, the ideal tree size is 1...
+

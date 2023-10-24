@@ -1,0 +1,30 @@
+"","term","vars_mid","vars_lo","vars_hi"
+"1","Elevation_m",NA,NA,NA
+"2","elevmean_wshed",NA,NA,NA
+"3","Depth_mean_m",NA,NA,NA
+"4","SWE_May_snotel","",""," -ProfTemp_top2m"
+"5","Watershed_area_to_lake_area_ratio",NA,NA,NA
+"6","flush_index_SWE_May_snodas",NA,NA,NA
+"7","solar_jas",""," +Total N"," -Total N"
+"8","northface",NA,NA,NA
+"9","forest",""," +Chlorophyll",""
+"10","barren",NA,NA,NA
+"11","Cl_dep_1985_1989",""," +Chlorophyll",""
+"12","Cl_dep_1985_2015",""," +Chlorophyll",""
+"13","Cl_dep_1990_1999",""," +Chlorophyll",""
+"14","Cl_dep_2000_2009",""," +Chlorophyll",""
+"15","N_dep_1985_1989",""," -secchi_value_m",""
+"16","N_dep_1985_2015",""," +Total N"," -Total N"
+"17","N_dep_1990_1999",""," -secchi_value_m",""
+"18","N_dep_2000_2009",""," +Total N"," -Total N"
+"19","NH4_dep_1985_1989",""," +Chlorophyll,  -secchi_value_m",""
+"20","NH4_dep_1985_2015",""," +Total N"," -Total N"
+"21","NH4_dep_1990_1999",""," +Chlorophyll,  -secchi_value_m",""
+"22","NH4_dep_2000_2009",""," +Chlorophyll,  -secchi_value_m,  +Total N"," -Total N"
+"23","NO3_dep_2000_2009",""," +Total N"," -Total N"
+"24","outlet",""," +Ca,  +Mg"," -Ca,  -Mg"
+"25","SO4_dep_1985_1989",""," +Chlorophyll,  -secchi_value_m",""
+"26","SO4_dep_1985_2015",""," +Chlorophyll",""
+"27","SO4_dep_1990_1999",""," +Chlorophyll,  -secchi_value_m",""
+"28","SO4_dep_2000_2009",""," +Chlorophyll",""
+"29","Watershed_area_ha",""," +Ca,  +K",""
