@@ -1,0 +1,53 @@
+Column,Description,Meaning ,InModel,Justification
+year,"year, starting in 1995 through 2015",year,Y,
+month,as numbers,month,Y,
+hylak_id,lake identifier           ,Individual Lake ,Y,
+centr_lat,latitude of center point of lake   - from GLCP      ,location,M,
+centr_lon,longitude of center point of lake     - from GLCP           ,location,M,
+continent,continent from hydrolakes,region,M,
+country,country   from hydrolakes,region,M,
+bsn_lvl,"Pfafstetter level of the basin - 12 is the smallest, 1 is continental ","size - basin, cateogrical ",M,
+hybas_id,"basin identifier from hydrosheds. Be sure to read in as character and NOT integer. This can be accomplished with data.table(…, integer64 = ""character"")",Individual basin ,Y,
+mean_monthly_precip_mm,basin level mean precip for a given month mm (from GLCP - annual time step),precip - mean monthly ,Y,
+total_precip_mm,basin level annual total precipitation  mm (from GLCP - annual time step),precip - cummulative yearly,Y,
+mean_annual_temp_k,basin level mean temperature k (from GLCP - annual time step),temperature - mean monthly,Y,
+pop_sum,basin level population for that year (annual but only every five years),population,Y,
+seasonal_km2,km2 of seasonal water in lake that year (present for at least one month in a year),surface area,Y,
+permanent_km2,km2 of permanent water in lake that year (present all 12 months),surface area,Y,
+total_km2,km2 of total water in lake that year,surface area,Y,
+lake_name,lake common name,common name,N,probably doesn't have a 1:1 ratio with individual lakes 
+lake_type,"numeric indicator of lake type. 1: Lake, 2: Reservoir, 3: Lake control (i.e. natural lake with regulation structure). Default value for lakes is 1, only those explicitly idenfied as other types are recoded. ",data description - category of lake (managed or not) ,N,"we can reasonably expect change in managed lakes, and the ""Lake"" category is not exclusive of lakes we know to be managed, so we will use all three lake types "
+lake_area,"km2 of initial polygon used in lake identification (alalogous to ""general"" lake area, with no year to year variation). This value comes from hydrolakes, so it is static in time.",area,N,"Initial shape file of lake, and has  nearly perfect correlation with surface area km2 estimates"
+shore_dev,"shoreline development, measured as the ratio between shoreline length and the circumference of a circle with the same area.",perimeter,,Can we make it categorical? What does the distribution of the ratios look like? 
+vol_total,"total lake or reservoir volume, in million cubic meters (1 mcm = 0.001 km3 )",volume,N,"correlated with depth, and since we're looking at surface area we get at the large volume lakes by including depth "
+vol_res,"reported reservoir volume, or storage volume of added lake regulation, in million cubic meters (1 mcm = 0.001 km3 ).",reservoir specific volume,N,"only has data for reservoirs, not all lakes"
+vol_src,"numeric code of data source for volume values.  1: ‘Vol_total’ is the reported total lake volume from literature, 2: ‘Vol_total’ is the reported total reservoir volume from GRanD or literature, 3: ‘Vol_total’ is the estimated total lake volume using the geostatistical modeling
+approach by Messager et al. (2016)",data description - source of volume data ,N,data quality indicator
+depth_avg,"Average lake depth, in meters.",depth,Y,
+res_time,"Average residence time of the lake water, in days. The average residence time is calculated as the ratio between total lake volume
+(‘Vol_total’) and average long-term discharge (‘Dis_avg’). Values below 0.1 are
+rounded up to 0.",residence time,Y,"leaving in for now, since this is a static variable, we may have an argument for kicking it out later. Let's make sure to look at it. "
+elevation,"Elevation of lake surface, in meters above sea level.",elevation,Y,
+slope_100,"Average slope within a 100 meter buffer around the lake polygon, in degrees.",slope,Y,
+wshd_area,"Area of the watershed associated with the lake, in square kilometers. This is a different calculation than our basins, so does not reflect basin area. ",area - catchment ,Y,we're interested in watershed area - it represents the catchment
+pour_long,"Longitude of the lake pour point, in decimal degrees.",location ,N,we already have lake center point
+pour_lat,"Latitude of the lake pour point, in decimal degrees",location ,N,we already have lake center point
+sub_area,km2 area of the river basin,area - river basin,Y,
+mean_spec_humidity,basin level mean value per month 2-meter specific humidity kg/kg,humidity - daily mean ,Y,"not sure how we are incorporating yet - may aggregate to annual, or develop process model "
+mean_precip_mm,"basin level mean value per month precip, average amount per pixel mm",precip - monthly mean ,Y,"not sure how we are incorporating yet - may aggregate to annual, or develop process model "
+sum_precip_mm,basin level total amount within a month precip mm,precip - monthly amount,Y,"not sure how we are incorporating yet - may aggregate to annual, or develop process model "
+mean_temp_k,basin level mean value per month temperature K,temp - monthly mean ,Y,"not sure how we are incorporating yet - may aggregate to annual, or develop process model "
+mean_totcloud_pct,basin level mean value per month fraction of cloud cover ,cloud cover - monthly mean ,Y,"not sure how we are incorporating yet - may aggregate to annual, or develop process model "
+mean_sw_wm2,basin level mean value per month shortwave radiation W/m2,radiation - short wave - monthly mean ,Y,"these might be correlated -look at when dataset is final; not sure how we are incorporating yet - may aggregate to annual, or develop process model "
+mean_lw_wm2,basin level mean value per month longwave radiation W/m2,radiation - long wave - monthly mean ,Y,"these might be correlated -look at when dataset is final; not sure how we are incorporating yet - may aggregate to annual, or develop process model "
+above_ratio_cutoff,"binary column indicating if lake is above the minimum lake area/basin area ratio. Values of 1 are above the minimum ratio cutoff, values of 0 are below the cutoff. (cutoff is outlier - 1.96 - of Z scored ratio of the smallest lake compared to the basin)",data quality - basin size vs smallest lake size ,U,data quality - use to narrow down on the 
+ice_cover_min,lake monthly minimum percent of ice cover ,percent - ice min,Y,
+ice_cover_max,lake monthly maximum percent of ice cover ,percent - ice max ,Y,
+ice_cover_mean,lake monthly mean percent of ice cover ,percent - ice mean,Y,
+ice_cover_median,lake monthly median percent of ice cover ,percent - ice median,Y,
+ice_cover_binary_min,lake monthly minimum number of pixels with ice,number of pixels - min,U,"data filter -  use the binary to narrow in on the times when Ice was present, and then we'll make a decision on which of the percent ice covers we want "
+ice_cover_binary_max,lake monthly maximum number of pixels with ice,number of pixels - max,U,"data filter -  use the binary to narrow in on the times when Ice was present, and then we'll make a decision on which of the percent ice covers we want "
+ice_cover_binary_mean,lake monthly mean number of pixels with ice,number of pixels - mean,U,"data filter -  use the binary to narrow in on the times when Ice was present, and then we'll make a decision on which of the percent ice covers we want "
+ice_cover_binary_median,lake monthly median number of pixels with ice,number of pixels - median,U,"data filter -  use the binary to narrow in on the times when Ice was present, and then we'll make a decision on which of the percent ice covers we want "
+ice_cover_count,number of valid daily ice observations used to calculate the summary statistics (0–31),data quality - ice observations,U,data quality indicator 
+snow_km2,basin level monthly snow km2,area - snow,Y,
